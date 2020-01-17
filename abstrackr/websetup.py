@@ -34,12 +34,4 @@ def setup_app(command, conf, vars):
     p.name = u'admin'
     meta.Session.add(p)
 
-    # give myslf a login. 
-    u = User()
-    u.username = u'byron'
-    u.fullname = u'byron wallace'
-    u.experience = 2
-    u._set_password('pignic')
-    u.email = u'byron.wallace@gmail.com'
-    meta.Session.add(u)
     meta.Session.commit()
