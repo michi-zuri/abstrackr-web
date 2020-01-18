@@ -137,9 +137,12 @@ class AccountController(BaseController):
             ), "\r\n")
 
         try:
-            server = smtplib.SMTP_SSL(host, port)
+            server = smtplib.SMTP()
+            server.connect( host + ':' + port )
             server.ehlo()
-            server.login(username, password)
+            server.starttls()
+            server.ehlo()
+            server.login(username, 'password')
             server.sendmail(sender, [to], body)
             server.close()
         except Exception, err:
@@ -531,4 +534,3 @@ to see which OperationalError is being raised ''')
                                     user_id=user_id,
                                     assignment_id=assignment_id).all()
         return labels
-

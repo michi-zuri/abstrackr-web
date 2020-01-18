@@ -3,9 +3,7 @@
 
 
 <div class="content">
-
-Forgot your password, huh? tsk, tsk. <br/><br/>
-Enter your email below and we'll send you instructions to reset it. 
+Please enter your email below and we'll send you instructions to reset it. 
 <br/><br/>
     <center>
 
