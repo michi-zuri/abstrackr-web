@@ -1,38 +1,19 @@
 *.swp
+*~
 *.DS_Store
-.ropeproject/
-data/
-tags
-
-=======
-
-# Ignore all files within the uploads/ folder #
-###############################################
-uploads/
+.envrc
+.tool-versions
 
 # Ignore all .pyc files from python #
 #####################################
 *.pyc
 
-# Database files #
-######################################
-*.bak
-*.sql
-*.sqlite
+# Ignore config files. We do not want these tracked #
+# as they include passwords and configuration       #
+# information                                       #
+#####################################################
+config*
 
-# Ignore ini files. We do not want these tracked #
-# as they include passwords and configuration    #
-# information                                    #
-##################################################
-*.ini
-
-# Paste server runtime files #
-##############################
-*.pid
-*.log
-
-.eggs/
-abstrackr.egg-info/
+# folders used in packaging?
 build/
 dist/
-eutils/
