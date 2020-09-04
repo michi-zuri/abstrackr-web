@@ -12,7 +12,7 @@
 # as they include passwords and configuration       #
 # information                                       #
 #####################################################
-config*
+config.*
 
 # folders used in packaging?
 build/
