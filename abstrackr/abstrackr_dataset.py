@@ -1,5 +1,4 @@
-import pdb, os 
-from paste.deploy import appconfig
+import pdb, os
 import numpy as np
 
 
@@ -12,36 +11,34 @@ class Dataset:
 
     def __init__(self, ids, titles, abstracts, mesh, lbl_dict, name=None):
         '''
-        assumes the ordering of ids is the same as the ordering of titles 
-        and abstracts! 
+        assumes the ordering of ids is the same as the ordering of titles
+        and abstracts!
         '''
         self.all_ids = ids
         self.N = len(self.all_ids)
         self.ids_to_indices = dict(zip(self.all_ids, range(self.N)))
 
         for i, id_ in enumerate(self.all_ids):
-            self.ids_to_indices[id_] = i 
-        
+            self.ids_to_indices[id_] = i
+
         self.titles = [t.decode(errors='ignore').encode('utf-8') for t in self._replace_None(titles)]
         self.abstracts = [a.decode(errors='ignore').encode('utf-8') for a in self._replace_None(abstracts)]
- 
+
         # 9/3 -- fix for case in which abstracts are all empty
         if not any([a != "" for a in abstracts]):
           abstracts = ["dummy" for i in xrange(len(abstracts))]
 
         # do we need to do the same for mesh?
         self.mesh = self._replace_None(mesh)
-        
+
         assert(len(ids) == len(titles) == len(abstracts))
-        
+
         self.lbl_dict = lbl_dict
 
         print "done. now reading labels in..."
         self._setup_lbl_vecs()
-        #self.stop_word_list_path = stop_word_fpath
 
-        conf = appconfig('config:development.ini', relative_to=os.path.join(os.path.dirname(__file__), '../../'))
-        self.stop_word_list_path = conf.get('stoplist_path')
+        self.stop_word_list_path = os.path.dirname(__file__)+'/stop_list.txt'
         self._load_stopwords()
         print "alright -- encoding!"
         self.encode()
@@ -50,7 +47,7 @@ class Dataset:
         for i, x_i in enumerate(x):
             if x_i is None:
                 x[i] = ""
-        
+
         return x
 
     def __len__(self):
@@ -60,7 +57,7 @@ class Dataset:
         train_indices = self._get_train_indices()
         if len(train_indices) == 0:
             raise Exception, "nothing has been labeled yet!"
-        
+
         return self.get_X_y(indices=train_indices)
 
     def _get_train_indices(self):
@@ -93,18 +90,18 @@ class Dataset:
         return self.abstracts_X, self.titles_X, self.mesh_X, self.l1s
 
     def encode(self):
-        self.abstracts_vectorizer = TfidfVectorizer(ngram_range=(1,2), max_features=50000, min_df=3, 
+        self.abstracts_vectorizer = TfidfVectorizer(ngram_range=(1,2), max_features=50000, min_df=3,
                                                     stop_words=self.stopwords)
         print "vectorizing abstracts..."
         self.abstracts_X = self.abstracts_vectorizer.fit_transform(self.abstracts)
         print "done. %s abstract features. now titles ..." % self.abstracts_X.shape[1]
 
-        self.titles_vectorizer = TfidfVectorizer(ngram_range=(1,2), max_features=50000, min_df=3, 
+        self.titles_vectorizer = TfidfVectorizer(ngram_range=(1,2), max_features=50000, min_df=3,
                                                     stop_words=self.stopwords)
         self.titles_X = self.titles_vectorizer.fit_transform(self.titles)
         print "ok. %s title features." % self.titles_X.shape[1]
         self.mesh_X = None
-        
+
         print "and finally, mesh..."
         self.mesh_vectorizer = TfidfVectorizer(max_features=50000, min_df=3)
         try:

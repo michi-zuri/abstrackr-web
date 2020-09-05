@@ -1,7 +1,3 @@
-'''
-This should replace extract_from_sql!
-'''
-
 import os, pdb, pickle, random
 from operator import itemgetter
 import datetime
@@ -10,7 +6,7 @@ import datetime
 # external dependencies
 ####
 
-from paste.deploy import appconfig
+import ConfigParser
 
 import sqlalchemy
 from sqlalchemy import *
@@ -19,9 +15,11 @@ from sqlalchemy.sql import and_, or_
 
 import make_predictions_sklearn
 
-conf = appconfig('config:development.ini', relative_to=os.path.join(os.path.dirname(__file__), '../../'))
+configParser = ConfigParser.RawConfigParser()
+configFilePath = os.path.normpath(os.path.join(os.path.dirname(__file__), r'../config.txt'))
+configParser.read(configFilePath)
 
-engine = create_engine(conf.get("mysql_address"))
+engine = create_engine(configParser.get('abstrackr', 'mysql_address'))
 metadata = MetaData(bind=engine)
 
 ####
@@ -41,9 +39,7 @@ def ensure_db_connection(func):
         try:
             return func(*args, **kwargs)
         except:
-            conf = appconfig('config:development.ini', relative_to=os.path.join(os.path.dirname(__file__), '../../'))
-
-            engine = create_engine(conf.get("mysql_address"))
+            engine = create_engine(configParser.get('abstrackr', 'mysql_address'))
             conn = engine.connect()
             metadata = MetaData(bind=engine)
 
@@ -113,7 +109,7 @@ def _get_predictions_for_review(review_id):
 
 
 ###
-# @TODO this is redundant with the corresponding method in review.py, but
+# ?? @TODO this is redundant with the corresponding method in review.py, but
 #       we need to be able to invoke this statically, hence its re-implementation
 ###
 @ensure_db_connection
@@ -178,43 +174,42 @@ def _re_prioritize(review_id, sort_by_str):
 def _priority_q_is_empty(review_id):
     return len(select([priorities.c.id], priorities.c.project_id == review_id).execute().fetchall()) == 0
 
-if __name__ == "__main__":
+def generate_predictions_run():
     # only build models if we have >= MIN_TRAINING_EXAMPLES labels
-    MIN_TRAINING_EXAMPLES = 100
+    MIN_TRAINING_EXAMPLES = 1
     all_reviews = _all_review_ids()
     reviews_to_update = [r for r in all_reviews if not _priority_q_is_empty(r)]
 
     for review_id in reviews_to_update:
-        # This review is too big -- ends up crashing. Skip it.
-        if review_id == 980:
-            continue
+        print "checking review %s..." % review_id
         predictions_last_updated = _predictions_last_updated(review_id)
         sort_by_str = select([reviews.c.sort_by], reviews.c.id == review_id).execute()
-        # uh-oh
         if sort_by_str.rowcount == 0:
-            print "I can't do anything for review %s -- it doesn't appear to have an entry" % review_id
-        else:
-            sort_by_str = sort_by_str.fetchone().sort_by
-            labels_for_review = select([labels.c.label_last_updated],
-			         labels.c.project_id==review_id).order_by(labels.c.label_last_updated.desc()).execute()
-            if labels_for_review.rowcount >= MIN_TRAINING_EXAMPLES:
-                print "checking review %s..." % review_id
-                most_recent_label = labels_for_review.fetchone().label_last_updated
-                print "the most recent label for review %s is dated: %s" % (review_id, most_recent_label)
-                if not _do_predictions_exist_for_review(review_id) or most_recent_label > predictions_last_updated:
-                    # now make predictions for updated reviews.
-                    print "making predictions for %s" % review_id
-                    if make_predictions_sklearn.make_predictions(review_id):
-                        # now re-prioritize
-                        print "re-prioritizing..."
-                        _re_prioritize(review_id, sort_by_str)
-                    else:
-                        print "erm, *everything* has been labeled for this review!"
+            print "Skipping empty review %s -- it doesn't appear to have any articles" % review_id
+            continue
+        sort_by_str = sort_by_str.fetchone().sort_by
+        labels_for_review = select([labels.c.label_last_updated],
+		         labels.c.project_id==review_id).order_by(labels.c.label_last_updated.desc()).execute()
+        if labels_for_review.rowcount >= MIN_TRAINING_EXAMPLES:
+            most_recent_label = labels_for_review.fetchone().label_last_updated
+            print "the most recent label for review %s is dated: %s" % (review_id, most_recent_label)
+            if not _do_predictions_exist_for_review(review_id) or (most_recent_label > predictions_last_updated):
+                # make predictions for updated and new reviews.
+                print "making predictions for %s" % review_id
+                if make_predictions_sklearn.make_predictions(review_id):
                     # now re-prioritize
                     print "re-prioritizing..."
                     _re_prioritize(review_id, sort_by_str)
-                else:
-                    # initial set of predictions
-                    print "not updating predictions for %s" % review_id
+                # now re-prioritize (again?!)
+                print "re-prioritizing..."
+                _re_prioritize(review_id, sort_by_str)
+            else:
+                # initial set of predictions
+                print "not updating predictions for %s" % review_id
+        else:
+            print "Skipping review %s : At least %s articles need to be sorted before Abstrackr can make predictions"  % (review_id, MIN_TRAINING_EXAMPLES)
 
     print "done."
+
+if __name__ == "__main__":
+    generate_predictions_run()

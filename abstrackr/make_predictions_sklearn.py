@@ -11,7 +11,7 @@ import sys
 # external dependencies
 ####
 
-from paste.deploy import appconfig
+import ConfigParser
 
 import sklearn_predictor
 from sklearn_predictor import BaggedUSLearner
@@ -24,13 +24,15 @@ from sqlalchemy.sql import and_, or_
 # home-grown
 import abstrackr_dataset
 
-conf = appconfig('config:development.ini', relative_to=os.path.join(os.path.dirname(__file__), '../../'))
+configParser = ConfigParser.RawConfigParser()
+configFilePath = os.path.normpath(os.path.join(os.path.dirname(__file__), r'../config.txt'))
+configParser.read(configFilePath)
 
-engine = create_engine(conf.get("mysql_address"))
+engine = create_engine(configParser.get('abstrackr', 'mysql_address'))
 conn = engine.connect()
 metadata = MetaData(bind=engine)
 
-### 
+###
 # table binding.
 #encoded_status = Table("EncodedStatuses", metadata, autoload=True) # we no longer need this.
 prediction_status = Table("predictionstatuses", metadata, autoload=True)
@@ -48,9 +50,7 @@ def ensure_db_connection(func):
         try:
             return func(*args, **kwargs)
         except:
-            conf = appconfig('config:development.ini', relative_to=os.path.join(os.path.dirname(__file__), '../../'))
-
-            engine = create_engine(conf.get("mysql_address"))
+            engine = create_engine(configParser.get('abstrackr', 'mysql_address'))
             conn = engine.connect()
             metadata = MetaData(bind=engine)
 
@@ -71,15 +71,15 @@ def ensure_db_connection(func):
     return test_for_stale_connection
 
 def make_predictions(review_id):
-    #predictions, train_size, num_pos = pred_results 
+    #predictions, train_size, num_pos = pred_results
     print "making predictions for review: %s" % review_id
     ids, titles, abstracts, mesh, lbls_dict = get_data_for_review(review_id)
     try:
-        review_dataset = abstrackr_dataset.Dataset(ids, titles, abstracts, mesh, 
+        review_dataset = abstrackr_dataset.Dataset(ids, titles, abstracts, mesh,
                                                 lbls_dict, name=str(review_id))
     except Exception as e:
         print e
-        return False 
+        return False
 
     if review_dataset.is_everything_labeled():
         return False
@@ -89,7 +89,7 @@ def make_predictions(review_id):
     try:
         learner.train()
     except Exception as e:
-        return False 
+        return False
 
     print "ok! making predictions..."
     try:
@@ -126,7 +126,7 @@ def _update_predictions(review_id, predictions, train_size, num_pos):
         conn.execute(predictions_table.insert().values(study_id=study_id, project_id=review_id, \
                     prediction=neg_one_to_0(pred_d["prediction"]), num_yes_votes=pred_d["num_yes_votes"]),
                     predicted_probability=pred_d["pred_prob"])
-    
+
     # delete any existing prediction status entries, should they exist
     conn.execute(prediction_status.delete().where(prediction_status.c.project_id == review_id))
 
@@ -172,7 +172,5 @@ def _get_lbl_d_for_review(review_id):
     lbl_d = {}
     s = labels.select(labels.c.project_id==review_id)
     for lbl in s.execute():
-        lbl_d[lbl["study_id"]]=lbl["label"]  
+        lbl_d[lbl["study_id"]]=lbl["label"]
     return lbl_d
-
-

@@ -1,4 +1,6 @@
+ConfigParser
 numpy == 1.16
+scipy == 1.2.2
 scikit-learn == 0.17
 pygooglechart == 0.4 
 Pygments == 2.5.*
