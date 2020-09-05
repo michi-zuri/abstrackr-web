@@ -1,3 +1,2 @@
 [abstrackr]
 mysql_address = mysql://<username>:<password>@127.0.0.1:3306/<database>
-stop_word_list_path = abstrackr/stop_list.txt
