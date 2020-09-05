@@ -31,6 +31,15 @@ CREATE TABLE `ResetPassword` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Dumping data for table `ResetPassword`
+--
+
+LOCK TABLES `ResetPassword` WRITE;
+/*!40000 ALTER TABLE `ResetPassword` DISABLE KEYS */;
+/*!40000 ALTER TABLE `ResetPassword` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `assignments`
 --
 
@@ -60,6 +69,15 @@ CREATE TABLE `assignments` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Dumping data for table `assignments`
+--
+
+LOCK TABLES `assignments` WRITE;
+/*!40000 ALTER TABLE `assignments` DISABLE KEYS */;
+/*!40000 ALTER TABLE `assignments` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `citations`
 --
 
@@ -84,6 +102,15 @@ CREATE TABLE `citations` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Dumping data for table `citations`
+--
+
+LOCK TABLES `citations` WRITE;
+/*!40000 ALTER TABLE `citations` DISABLE KEYS */;
+/*!40000 ALTER TABLE `citations` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `citations_tasks`
 --
 
@@ -99,6 +126,15 @@ CREATE TABLE `citations_tasks` (
   CONSTRAINT `citations_tasks_ibfk_2` FOREIGN KEY (`task_id`) REFERENCES `tasks` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `citations_tasks`
+--
+
+LOCK TABLES `citations_tasks` WRITE;
+/*!40000 ALTER TABLE `citations_tasks` DISABLE KEYS */;
+/*!40000 ALTER TABLE `citations_tasks` ENABLE KEYS */;
+UNLOCK TABLES;
 
 --
 -- Table structure for table `encodedstatuses`
@@ -119,6 +155,15 @@ CREATE TABLE `encodedstatuses` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Dumping data for table `encodedstatuses`
+--
+
+LOCK TABLES `encodedstatuses` WRITE;
+/*!40000 ALTER TABLE `encodedstatuses` DISABLE KEYS */;
+/*!40000 ALTER TABLE `encodedstatuses` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `group`
 --
 
@@ -131,6 +176,15 @@ CREATE TABLE `group` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `group`
+--
+
+LOCK TABLES `group` WRITE;
+/*!40000 ALTER TABLE `group` DISABLE KEYS */;
+/*!40000 ALTER TABLE `group` ENABLE KEYS */;
+UNLOCK TABLES;
 
 --
 -- Table structure for table `group_permission`
@@ -146,6 +200,15 @@ CREATE TABLE `group_permission` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `group_permission`
+--
+
+LOCK TABLES `group_permission` WRITE;
+/*!40000 ALTER TABLE `group_permission` DISABLE KEYS */;
+/*!40000 ALTER TABLE `group_permission` ENABLE KEYS */;
+UNLOCK TABLES;
 
 --
 -- Table structure for table `labeledfeatures`
@@ -164,6 +227,15 @@ CREATE TABLE `labeledfeatures` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `labeledfeatures`
+--
+
+LOCK TABLES `labeledfeatures` WRITE;
+/*!40000 ALTER TABLE `labeledfeatures` DISABLE KEYS */;
+/*!40000 ALTER TABLE `labeledfeatures` ENABLE KEYS */;
+UNLOCK TABLES;
 
 --
 -- Table structure for table `labels`
@@ -191,6 +263,15 @@ CREATE TABLE `labels` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Dumping data for table `labels`
+--
+
+LOCK TABLES `labels` WRITE;
+/*!40000 ALTER TABLE `labels` DISABLE KEYS */;
+/*!40000 ALTER TABLE `labels` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `notes`
 --
 
@@ -210,6 +291,15 @@ CREATE TABLE `notes` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Dumping data for table `notes`
+--
+
+LOCK TABLES `notes` WRITE;
+/*!40000 ALTER TABLE `notes` DISABLE KEYS */;
+/*!40000 ALTER TABLE `notes` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `permission`
 --
 
@@ -222,6 +312,15 @@ CREATE TABLE `permission` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `permission`
+--
+
+LOCK TABLES `permission` WRITE;
+/*!40000 ALTER TABLE `permission` DISABLE KEYS */;
+/*!40000 ALTER TABLE `permission` ENABLE KEYS */;
+UNLOCK TABLES;
 
 --
 -- Table structure for table `predictions`
@@ -243,6 +342,15 @@ CREATE TABLE `predictions` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Dumping data for table `predictions`
+--
+
+LOCK TABLES `predictions` WRITE;
+/*!40000 ALTER TABLE `predictions` DISABLE KEYS */;
+/*!40000 ALTER TABLE `predictions` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `predictionstatuses`
 --
 
@@ -260,6 +368,15 @@ CREATE TABLE `predictionstatuses` (
   CONSTRAINT `CONSTRAINT_1` CHECK (`predictions_exist` in (0,1))
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `predictionstatuses`
+--
+
+LOCK TABLES `predictionstatuses` WRITE;
+/*!40000 ALTER TABLE `predictionstatuses` DISABLE KEYS */;
+/*!40000 ALTER TABLE `predictionstatuses` ENABLE KEYS */;
+UNLOCK TABLES;
 
 --
 -- Table structure for table `priorities`
@@ -285,6 +402,15 @@ CREATE TABLE `priorities` (
   CONSTRAINT `CONSTRAINT_1` CHECK (`is_out` in (0,1))
 ) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `priorities`
+--
+
+LOCK TABLES `priorities` WRITE;
+/*!40000 ALTER TABLE `priorities` DISABLE KEYS */;
+/*!40000 ALTER TABLE `priorities` ENABLE KEYS */;
+UNLOCK TABLES;
 
 --
 -- Table structure for table `projects`
@@ -315,6 +441,15 @@ CREATE TABLE `projects` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Dumping data for table `projects`
+--
+
+LOCK TABLES `projects` WRITE;
+/*!40000 ALTER TABLE `projects` DISABLE KEYS */;
+/*!40000 ALTER TABLE `projects` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `projects_leaders`
 --
 
@@ -332,6 +467,15 @@ CREATE TABLE `projects_leaders` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Dumping data for table `projects_leaders`
+--
+
+LOCK TABLES `projects_leaders` WRITE;
+/*!40000 ALTER TABLE `projects_leaders` DISABLE KEYS */;
+/*!40000 ALTER TABLE `projects_leaders` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `tags`
 --
 
@@ -346,6 +490,15 @@ CREATE TABLE `tags` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `tags`
+--
+
+LOCK TABLES `tags` WRITE;
+/*!40000 ALTER TABLE `tags` DISABLE KEYS */;
+/*!40000 ALTER TABLE `tags` ENABLE KEYS */;
+UNLOCK TABLES;
 
 --
 -- Table structure for table `tagtypes`
@@ -365,6 +518,15 @@ CREATE TABLE `tagtypes` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Dumping data for table `tagtypes`
+--
+
+LOCK TABLES `tagtypes` WRITE;
+/*!40000 ALTER TABLE `tagtypes` DISABLE KEYS */;
+/*!40000 ALTER TABLE `tagtypes` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `tasks`
 --
 
@@ -379,6 +541,15 @@ CREATE TABLE `tasks` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `tasks`
+--
+
+LOCK TABLES `tasks` WRITE;
+/*!40000 ALTER TABLE `tasks` DISABLE KEYS */;
+/*!40000 ALTER TABLE `tasks` ENABLE KEYS */;
+UNLOCK TABLES;
 
 --
 -- Table structure for table `user`
@@ -401,8 +572,18 @@ CREATE TABLE `user` (
   CONSTRAINT `CONSTRAINT_1` CHECK (`show_journal` in (0,1)),
   CONSTRAINT `CONSTRAINT_2` CHECK (`show_authors` in (0,1)),
   CONSTRAINT `CONSTRAINT_3` CHECK (`show_keywords` in (0,1))
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `user`
+--
+
+LOCK TABLES `user` WRITE;
+/*!40000 ALTER TABLE `user` DISABLE KEYS */;
+INSERT INTO `user` VALUES (2,'killian','michael.killian@uzh.ch','f8e3af429f1bf268bf01d6283114b9142234c26007e3f6441f478ba2569b544a3b85834b781f1cb3','Michael Killian',10,1,1,1);
+/*!40000 ALTER TABLE `user` ENABLE KEYS */;
+UNLOCK TABLES;
 
 --
 -- Table structure for table `user_group`
@@ -420,6 +601,15 @@ CREATE TABLE `user_group` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Dumping data for table `user_group`
+--
+
+LOCK TABLES `user_group` WRITE;
+/*!40000 ALTER TABLE `user_group` DISABLE KEYS */;
+/*!40000 ALTER TABLE `user_group` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `users_projects`
 --
 
@@ -435,6 +625,15 @@ CREATE TABLE `users_projects` (
   CONSTRAINT `users_projects_ibfk_2` FOREIGN KEY (`project_id`) REFERENCES `projects` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `users_projects`
+--
+
+LOCK TABLES `users_projects` WRITE;
+/*!40000 ALTER TABLE `users_projects` DISABLE KEYS */;
+/*!40000 ALTER TABLE `users_projects` ENABLE KEYS */;
+UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -445,4 +644,4 @@ CREATE TABLE `users_projects` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2020-09-05 21:30:26
+-- Dump completed on 2020-09-05 21:36:41
