@@ -1,10 +1,13 @@
-import pdb, os
+'''
+Byron C. Wallace
+4/21/2014
+'''
+
+# standard library imports
+import os, pdb
+
+# third-party package dependencies
 import numpy as np
-
-
-###
-# feature extraction & encoding
-import sklearn
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 class Dataset:
