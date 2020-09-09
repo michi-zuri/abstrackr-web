@@ -5,10 +5,12 @@ Byron C. Wallace
 
 # standard library imports
 import os, pdb
+from builtins import range
 
 # third-party package dependencies
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
+
 
 class Dataset:
 
@@ -24,26 +26,26 @@ class Dataset:
         for i, id_ in enumerate(self.all_ids):
             self.ids_to_indices[id_] = i
 
-        self.titles = [t.decode(errors='ignore').encode('utf-8') for t in self._replace_None(titles)]
-        self.abstracts = [a.decode(errors='ignore').encode('utf-8') for a in self._replace_None(abstracts)]
+        self.titles = titles #[t.decode(errors='ignore').encode('utf-8') for t in self._replace_None(titles)]
+        self.abstracts = abstracts #[a.decode(errors='ignore').encode('utf-8') for a in self._replace_None(abstracts)]
 
         # 9/3 -- fix for case in which abstracts are all empty
         if not any([a != "" for a in abstracts]):
           abstracts = ["dummy" for i in xrange(len(abstracts))]
 
         # do we need to do the same for mesh?
-        self.mesh = self._replace_None(mesh)
+        self.mesh = mesh #self._replace_None(mesh)
 
         assert(len(ids) == len(titles) == len(abstracts))
 
         self.lbl_dict = lbl_dict
 
-        print "done. now reading labels in..."
+        print( "done. now reading labels in..." )
         self._setup_lbl_vecs()
 
         self.stop_word_list_path = os.path.dirname(__file__)+'/stop_list.txt'
         self._load_stopwords()
-        print "alright -- encoding!"
+        print( "alright -- encoding!" )
         self.encode()
 
     def _replace_None(self, x):
@@ -59,7 +61,7 @@ class Dataset:
     def get_train_X_y(self):
         train_indices = self._get_train_indices()
         if len(train_indices) == 0:
-            raise Exception, "nothing has been labeled yet!"
+            raise Exception( "nothing has been labeled yet!" )
 
         return self.get_X_y(indices=train_indices)
 
@@ -84,7 +86,7 @@ class Dataset:
         ids = []
         if indices is not None:
             if len(indices) == 0:
-                raise Exception, "list of indices is empty."
+                raise Exception( "list of indices is empty." )
             mesh_for_indices = None
             if self.mesh_X is not None:
                 mesh_for_indices = self.mesh_X[indices]
@@ -95,25 +97,25 @@ class Dataset:
     def encode(self):
         self.abstracts_vectorizer = TfidfVectorizer(ngram_range=(1,2), max_features=50000, min_df=3,
                                                     stop_words=self.stopwords)
-        print "vectorizing abstracts..."
+        print( "vectorizing abstracts..." )
         self.abstracts_X = self.abstracts_vectorizer.fit_transform(self.abstracts)
-        print "done. %s abstract features. now titles ..." % self.abstracts_X.shape[1]
+        print( "done. %s abstract features. now titles ..." % self.abstracts_X.shape[1] )
 
         self.titles_vectorizer = TfidfVectorizer(ngram_range=(1,2), max_features=50000, min_df=3,
                                                     stop_words=self.stopwords)
         self.titles_X = self.titles_vectorizer.fit_transform(self.titles)
-        print "ok. %s title features." % self.titles_X.shape[1]
+        print( "ok. %s title features." % self.titles_X.shape[1] )
         self.mesh_X = None
 
-        print "and finally, mesh..."
+        print( "and finally, mesh..." )
         self.mesh_vectorizer = TfidfVectorizer(max_features=50000, min_df=3)
         try:
             self.mesh_X = self.mesh_vectorizer.fit_transform(self.mesh)
-            print "ok -- %s mesh features." % self.mesh_X.shape[1]
+            print( "ok -- %s mesh features." % self.mesh_X.shape[1] )
         except:
-            print "no mesh!"
+            print( "no mesh!" )
 
-        print "all encoded!"
+        print( "all encoded!" )
 
 
     def is_everything_labeled(self):
@@ -141,6 +143,4 @@ class Dataset:
                     self.l1s[i] = -1.0
 
         count_ones = lambda a: len([x for x in a if x == 1])
-        print "%s total labeled; %s includes" % (
-                        self.labeled_count,
-                        count_ones(self.l1s))
+        print( "%s total labeled; %s includes" % ( self.labeled_count, count_ones(self.l1s)) )

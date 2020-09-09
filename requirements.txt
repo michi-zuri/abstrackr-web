@@ -1,6 +1,17 @@
-ConfigParser
-SQLAlchemy == 1.3
-mysqlclient == 1.3.12
-numpy == 1.16
-scipy == 1.2.2
-scikit-learn == 0.17
+ConfigParser  #tested with 5.0.0
+SQLAlchemy    #tested with 1.3.19
+mysqlclient   #tested with 2.0.1
+psycopg2      #tested with 2.8.6
+numpy         #tested with 1.19.1
+scipy         #tested with 1.5.2
+scikit-learn  #tested with 0.23.2
+pyzotero      #tested with 1.4.16
+
+#tested with python2.7:
+#ConfigParser == 4.0.2
+#SQLAlchemy >= 1.3
+#mysqlclient >= 1.3.12
+#numpy == 1.16.6
+#scipy >= 1.2.2
+#scikit-learn == 0.17.1
+#pyzotero >= 1.4.16

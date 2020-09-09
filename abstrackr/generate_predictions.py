@@ -6,60 +6,66 @@ Byron C. Wallace
 # standard library imports
 import datetime, os, pdb, pickle, random, sys, time
 from operator import itemgetter
+from builtins import range
 
 # third-party package dependencies
-from ConfigParser import RawConfigParser
+from configparser import RawConfigParser
 from sqlalchemy import create_engine, pool, sql, MetaData, Table
 
 # local modules
-import abstrackr_dataset
-from sklearn_predictor import BaggedUSLearner
+from . import abstrackr_dataset
+from .sklearn_predictor import BaggedUSLearner
+
+################################################################################
 
 config = RawConfigParser()
 config.read(os.path.normpath(os.path.join(os.path.dirname(__file__), r'../config.txt')))
 
-
-def make_predictions(review_id):
+def make_predictions(review_id, t_citations, t_labels, t_prediction_status, t_predictions):
     #predictions, train_size, num_pos = pred_results
-    print "making predictions for review: %s" % review_id
-    ids, titles, abstracts, mesh, lbls_dict = get_data_for_review(review_id, t_citations)
+    print( "making predictions for review # %s" % review_id )
+    ids, titles, abstracts, mesh, lbls_dict = get_data_for_review(review_id, t_citations, t_labels)
     try:
         review_dataset = abstrackr_dataset.Dataset(
             ids, titles, abstracts, mesh, lbls_dict, name=str(review_id)
         )
     except Exception as e:
-        print e
+        print( "Exception for Dataset: %s" % e )
         return False
 
-    if review_dataset.is_everything_labeled():
-        return False
+#    skip predictions for finished reviews
+#    if review_dataset.is_everything_labeled():
+#        return False
 
     learner = BaggedUSLearner(review_dataset)
-    print "training..."
+    print( "training..." )
     try:
         learner.train()
     except Exception as e:
+        print( "Exception for learner.train(): %s" % e )
         return False
-    print "ok! making predictions..."
+    print( "ok! making predictions..." )
     try:
         pred_d, train_size, num_pos = learner.predict_remaining()
     except Exception as e:
+        print( "Exception for learner.predict_meaning(): %s" % e )
         return False
-    print "-"*20 + " summary for review %s " % review_id + "-"*20
-    print "training set size: %s\ntest set size: %s\n# predicted to be positive: %s" % (
-            train_size, len(pred_d), num_pos)
-    print "-"*62
-    print "done. updating tables..."
+    print( "-"*20 + " summary for review %s " % review_id + "-"*20 )
+    print( "training set size: %s\ntest set size: %s\n# predicted to be positive: %s"
+        %   (                  train_size,        len(pred_d),                    num_pos)
+    )
+    print( "-"*62 )
 
-    return _update_predictions(review_id, pred_d, train_size, num_pos, t_prediction_status, t_predictions)
-    print "okey dokey.\n"
+    okey_dokey = _update_predictions(review_id, pred_d, train_size, num_pos, t_prediction_status, t_predictions)
+    print( "predictions made are %s \n" % okey_dokey )
+    return okey_dokey
 
 def _update_predictions(review_id, pred_d, train_size, num_pos, t_prediction_status, t_predictions):
     try:
+        print( "done. updating tables..." )
         # first, delete all prediction entries associated with this
         # review (these are presumably 'stale' now)
-        conn.execute(
-            t_predictions.delete().where(t_predictions.c.project_id == review_id))
+        t_predictions.delete().where(t_predictions.c.project_id == review_id).execute()
 
         # map -1's to 0's; this is because the ORM (sql-alchemy)
         # expects boolean fields to be either 0 or 1, which is apparently
@@ -68,28 +74,29 @@ def _update_predictions(review_id, pred_d, train_size, num_pos, t_prediction_sta
 
         # now re-insert them, reflecting the new prediction
         for study_id, pred in pred_d.items():
-            conn.execute(t_predictions.insert().values(study_id=study_id, project_id=review_id, \
-                        prediction=neg_one_to_0(pred["prediction"]), num_yes_votes=pred["num_yes_votes"]),
-                        predicted_probability=pred["pred_prob"])
+            t_predictions.insert().values(study_id=study_id, project_id=review_id, \
+                prediction=neg_one_to_0(pred["prediction"]), num_yes_votes=pred["num_yes_votes"]
+            ).execute(predicted_probability=pred["pred_prob"])
 
         # delete any existing prediction status entries, should they exist
-        conn.execute(t_prediction_status.delete().where(t_prediction_status.c.project_id == review_id))
+        t_prediction_status.delete().where(t_prediction_status.c.project_id == review_id).execute()
 
         # finally, update the prediction status
-        conn.execute(t_prediction_status.insert().values(project_id=review_id, predictions_exist=True,\
-             predictions_last_made=datetime.datetime.now(), train_set_size=train_size,\
-             num_pos_train=num_pos))
-
-        return True
+        t_prediction_status.insert().values(project_id=review_id, predictions_exist=True,\
+             predictions_last_made=datetime.datetime.now()
+        ).execute( train_set_size=train_size, num_pos_train=num_pos )
 
     except Exception as e:
+        print( "Update predictions error: %s" % e )
         return False
 
-def get_data_for_review(review_id, t_citations):
+    return True
+
+def get_data_for_review(review_id, t_citations, t_labels):
     '''
     ids, titles, abstracts, mesh, lbl_dict
     '''
-    lbls_dict = _get_lbl_d_for_review(review_id)
+    lbls_dict = _get_lbl_d_for_review(review_id, t_labels)
     review_citation_dict = _get_ti_ab_mh(review_id, t_citations)
     # note the ordering
     ids = sorted(review_citation_dict.keys())
@@ -103,7 +110,7 @@ def get_data_for_review(review_id, t_citations):
 
 def _get_ti_ab_mh(review_id, t_citations):
     fields = ["title", "abstract", "keywords"]
-    none_to_text= lambda x: "none" if x is None else x
+    none_to_text= lambda x: "" if x is None else x
 
     s = t_citations.select(t_citations.c.project_id==review_id)
     citations_for_review = list(s.execute())
@@ -112,7 +119,7 @@ def _get_ti_ab_mh(review_id, t_citations):
         citation_id = citation['id']
         cit_d[citation_id] = {}
         for field in fields:
-            cit_d[citation_id][field] = citation[field]
+            cit_d[citation_id][field] = none_to_text( citation[field] )
     return cit_d
 
 def _get_lbl_d_for_review(review_id, t_labels):
@@ -164,7 +171,7 @@ def _get_predictions_for_review(review_id, t_predictions):
         preds_d[study_id] = prob
     return preds_d
 
-def _re_prioritize(review_id, sort_by_str, t_citations, t_priorities):
+def _re_prioritize(review_id, sort_by_str, t_citations, t_priorities, t_prediction_status):
     citation_ids = [cit.id for cit in _get_citations_for_review(review_id, t_citations)]
     predictions_for_review = None
     if _do_predictions_exist_for_review(review_id, t_prediction_status):
@@ -179,7 +186,7 @@ def _re_prioritize(review_id, sort_by_str, t_citations, t_priorities):
     # these will depend on the sort_by_str
     cit_id_to_new_priority = {}
     if sort_by_str == "Random":
-        ordering = range(len(citation_ids))
+        ordering = list(range(len(citation_ids)))
         # shuffle
         random.shuffle(ordering)
         cit_id_to_new_priority = dict(zip(citation_ids, ordering))
@@ -237,42 +244,44 @@ def main():
     t_prediction_status = Table("predictionstatuses", metadata, autoload=True)
     t_predictions = Table("predictions", metadata, autoload=True)
     t_priorities = Table("priorities", metadata, autoload=True)
-    #users = Table("user", metadata, autoload=True)
-    #labeled_features = Table("labeledfeatures", metadata, autoload=True)
-    #encoded_status = Table("encodedstatuses", metadata, autoload=True)
+    #t_users = Table("user", metadata, autoload=True)
+    #t_labeled_features = Table("labeledfeatures", metadata, autoload=True)
+    #encoded_status = Table("encodedstatuses", metadata, autoload=True) # not used anymore
 
     # only build models if we have >= MIN_TRAINING_EXAMPLES labels
-    MIN_TRAINING_EXAMPLES = 1
+    MIN_TRAINING_EXAMPLES = 100
     all_reviews = _all_review_ids(t_reviews)
     reviews_to_update = [r for r in all_reviews if not _priority_q_is_empty(r, t_priorities)]
 
     for review_id in reviews_to_update:
-        print "checking review %s..." % review_id
+        print( "checking review %s..." % review_id )
         predictions_last_updated = _predictions_last_updated(review_id, t_prediction_status)
+        print( "predictions last updated %s" % predictions_last_updated)
         sort_by_str = sql.select([t_reviews.c.sort_by], t_reviews.c.id == review_id).execute()
         if sort_by_str.rowcount == 0:
-            print "Skipping empty review %s -- it doesn't appear to have any articles" % review_id
+            print( "Skipping empty review %s -- it doesn't appear to have any articles" % review_id )
             continue
         sort_by_str = sort_by_str.fetchone().sort_by
         labels_for_review = sql.select([t_labels.c.label_last_updated],
 		         t_labels.c.project_id==review_id).order_by(t_labels.c.label_last_updated.desc()).execute()
         if labels_for_review.rowcount >= MIN_TRAINING_EXAMPLES:
             most_recent_label = labels_for_review.fetchone().label_last_updated
-            print "the most recent label for review %s is dated: %s" % (review_id, most_recent_label)
+            print( "the most recent label for review %s is dated: %s" % (review_id, most_recent_label) )
             if not _do_predictions_exist_for_review(review_id, t_prediction_status) or (most_recent_label > predictions_last_updated):
                 # make predictions for updated and new reviews.
-                print "making predictions for %s" % review_id
-                if make_predictions(review_id):
+                if make_predictions(review_id, t_citations, t_labels, t_prediction_status, t_predictions):
                     # now re-prioritize
-                    print "re-prioritizing..."
-                    _re_prioritize(review_id, sort_by_str, t_citations, t_priorities)
+                    print( "re-prioritizing..." )
+                    _re_prioritize(review_id, sort_by_str, t_citations, t_priorities, t_prediction_status)
             else:
                 # initial set of predictions
-                print "not updating predictions for %s" % review_id
+                print( "not updating predictions for %s" % review_id )
         else:
-            print "Skipping review %s : At least %s articles need to be sorted before Abstrackr can make predictions"  % (review_id, MIN_TRAINING_EXAMPLES)
+            print( "Skipping review %s : At least %s articles need to be sorted before Abstrackr can make predictions"
+                %   (               review_id,    MIN_TRAINING_EXAMPLES)
+            )
 
-    print "done."
+    print( "done." )
 
 if __name__ == "__main__":
     main()
