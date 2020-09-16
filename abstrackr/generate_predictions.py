@@ -7,6 +7,7 @@ Byron C. Wallace
 import datetime, os, pdb, pickle, random, sys, time
 from operator import itemgetter
 from builtins import range
+from future.utils import iteritems
 
 # third-party package dependencies
 from configparser import RawConfigParser
@@ -171,7 +172,7 @@ def _get_predictions_for_review(review_id, t_predictions):
         preds_d[study_id] = prob
     return preds_d
 
-def _re_prioritize(review_id, sort_by_str, t_citations, t_priorities, t_prediction_status):
+def _re_prioritize(review_id, sort_by_str, t_citations, t_priorities, t_prediction_status, t_predictions):
     citation_ids = [cit.id for cit in _get_citations_for_review(review_id, t_citations)]
     predictions_for_review = None
     if _do_predictions_exist_for_review(review_id, t_prediction_status):
@@ -207,7 +208,7 @@ def _re_prioritize(review_id, sort_by_str, t_citations, t_priorities, t_predicti
             cits_to_preds[study_id] = prob
 
         # now we will sort by *descending* order; those with the most yes-votes first
-        sorted_cit_ids = sorted(cits_to_preds.iteritems(), key=itemgetter(1), reverse=True)
+        sorted_cit_ids = sorted(iteritems(cits_to_preds), key=itemgetter(1), reverse=True)
 
         # now just assign priorities that reflect the ordering w.r.t. the predictions
         for i, cit in enumerate(sorted_cit_ids):
@@ -272,7 +273,7 @@ def main():
                 if make_predictions(review_id, t_citations, t_labels, t_prediction_status, t_predictions):
                     # now re-prioritize
                     print( "re-prioritizing..." )
-                    _re_prioritize(review_id, sort_by_str, t_citations, t_priorities, t_prediction_status)
+                    _re_prioritize(review_id, sort_by_str, t_citations, t_priorities, t_prediction_status, t_predictions)
             else:
                 # initial set of predictions
                 print( "not updating predictions for %s" % review_id )

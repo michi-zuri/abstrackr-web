@@ -8,6 +8,9 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.model_selection import GridSearchCV
 import numpy as np
 
+# make predictions reproducible
+np.random.seed(0)
+
 class MetaClf:
 
     def __init__(self, clf_ti, clf_ab, clf_mh=None):
@@ -76,15 +79,15 @@ class BaggedUSLearner:
             # what we want (i guess?). could also try recall..
             ### legacy configuration: cv=3, iid=True were default settings in earlier versions of sklearn
             ### iid=True is not available anymore in scikit-learn 0.24
-            self.clf_ti = GridSearchCV(svm.SVC(probability=True, kernel="linear"), param_grid, cv=3)
+            self.clf_ti = GridSearchCV(svm.SVC(probability=True, kernel="linear"), param_grid, cv=5)
             self.clf_ti.fit(X_i_ti, y_i)
 
-            self.clf_ab = GridSearchCV(svm.SVC(probability=True, kernel="linear"), param_grid, cv=3)
+            self.clf_ab = GridSearchCV(svm.SVC(probability=True, kernel="linear"), param_grid, cv=5)
             self.clf_ab.fit(X_i_ab, y_i)
 
             self.clf_mh = None
             if X_mesh is not None:
-                self.clf_mh = GridSearchCV(svm.SVC(probability=True, kernel="linear"), param_grid, cv=3)
+                self.clf_mh = GridSearchCV(svm.SVC(probability=True, kernel="linear"), param_grid, cv=5)
                 self.clf_mh.fit(X_i_mh, y_i)
 
             self.ensemble.append(MetaClf(self.clf_ti, self.clf_ab, self.clf_mh))
