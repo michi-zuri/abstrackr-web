@@ -37,6 +37,9 @@ def _start_duration() :
     return datetime.datetime.now(datetime.timezone.utc)
 
 def _ensure_schema_exists(engine, metadata, library_type_id):
+    """ Prepare database to accomodate all possible fields for storage.
+        Create, schema, tables and columns as needed
+    """ 
     with engine.connect() as db:
         query = "CREATE SCHEMA IF NOT EXISTS %s" % library_type_id ;
         db.execute(text(query))
