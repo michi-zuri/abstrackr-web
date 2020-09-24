@@ -1,2 +1,5 @@
-[abstrackr]
-mysql_address = mysql://<username>:<password>@127.0.0.1:3306/<database>
+[database]
+conn_string = postgresql://<username>:<password>@127.0.0.1:5432/<database>
+
+[zotero]
+api_key = pTG8Zvz3JGgKliGzwXtwABGS

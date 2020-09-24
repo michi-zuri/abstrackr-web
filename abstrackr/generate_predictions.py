@@ -233,10 +233,10 @@ def _re_prioritize(review_id, sort_by_str, t_citations, t_priorities, t_predicti
 def _priority_q_is_empty(review_id, t_priorities):
     return len(sql.select([t_priorities.c.id], t_priorities.c.project_id == review_id).execute().fetchall()) == 0
 
-def main():
+def main(conn_string, schema=None):
     # database connection setup with sqlalchemy
-    engine = create_engine(config.get('abstrackr', 'mysql_address'), poolclass=pool.NullPool)
-    metadata = MetaData(engine)
+    engine = create_engine(config.get('database', conn_string), poolclass=pool.NullPool)
+    metadata = MetaData(engine, schema=schema)
 
     # bind the tables
     t_citations = Table("citations", metadata, autoload=True)
