@@ -1,34 +1,20 @@
 # https://www.python.org/dev/peps/pep-0263/ encoding: utf-8
 
-import datetime, json, math, os
-import json
+import datetime, json, math, os, json
 
 from configparser import RawConfigParser
-# for regular SQL execution
-from sqlalchemy import create_engine, pool, text, MetaData
-# for setting up db schema
-from sqlalchemy import func, Column, DateTime, Integer, String, Table
+from sqlalchemy import create_engine, text, MetaData
 from pyzotero.zotero import Zotero
+
+from . import schema as ensure_schema
 
 config = RawConfigParser()
 config.read(os.path.normpath(os.path.join(os.path.dirname(__file__), r'../config.txt')))
 
-def response_headers(Z):
-    """ Get the response headers of the last made request
-    """
-    return Z.request.headers
-
 def _fetch_key_info(api_key):
     z = Zotero('AnyLibrary', 'AnyType', api_key)
-    key_info = z.key_info()
+    key_info = z.key_info(limit=0)
     return key_info
-
-def _inspect_api_key(api_key, key_info = None):
-    if not key_info :
-        key_info = _fetch_key_info(api_key)
-    z = Zotero(key_info['userID'], 'user', api_key)
-    groups = z.groups()
-    return (groups, key_info)
 
 def _duration(start_time) :
     return (datetime.datetime.now(datetime.timezone.utc)-start_time).total_seconds()
@@ -36,80 +22,54 @@ def _duration(start_time) :
 def _start_duration() :
     return datetime.datetime.now(datetime.timezone.utc)
 
-def _ensure_schema_exists(engine, metadata, library_type_id):
-    """ Prepare database to accomodate all possible fields for storage.
-        Create, schema, tables and columns as needed
-    """ 
-    with engine.connect() as db:
-        query = "CREATE SCHEMA IF NOT EXISTS %s" % library_type_id ;
-        db.execute(text(query))
-        query = "CREATE SCHEMA IF NOT EXISTS zotero ;"
-        db.execute(text(query))
+def from_zotero_user(user_id, api_key = None, key_info = None, db_key = 'conn_string') :
+    from_zotero_library(user_id, 'user', api_key, key_info, db_key)
 
-    t_references = Table("references", metadata,
-        Column('id', Integer, primary_key=True),
-        Column('key', String(8), unique=True, comment='Zotero API item identifier'),
-        Column('version', Integer, comment='Version used for syncing with Zotero API'),
-        Column('pmid', Integer, comment='Pubmed identifier'),
-        Column('eid', Integer, comment='Scopus electronic identifier: the prefix `2-s2.0-` is omitted'),
-        Column('doi', String(50), comment='digital object identifier'),
-        Column('title', String(1000), comment='title of journal article, book, conference, etc.'),
-        Column('abstract', String(20000), comment=''),
-        Column('authors', String(1000), comment=''),
-        Column('journal', String(1000), comment='Name of the journal that the reference was published in'),
-        Column('publication_date', String(50), comment='Zotero stores publication dates as plain text'),
-        Column('keywords', String(1000), comment='keywords suggested by the author(s)'),
-        Column('CAS', String(1000), comment='Chemical Abstracts Service identifier for chemical substances, as indexed by Scopus'),
-        Column('MeSH', String(1000), comment='Medical Subject Headings indexed by MEDLINE'),
-        Column('EMTREE', String(1000), comment='EMTREE indexed by EMBASE'),
-        schema=library_type_id
-    )
+def from_zotero_group(group_id, api_key = None, key_info = None, db_key = 'conn_string'):
+    from_zotero_library(group_id, 'group', api_key, key_info, db_key)
 
-    t_syncs = Table("syncs", metadata,
-        Column('id', Integer, primary_key=True),
-        Column('timestamp', DateTime(True), server_default=func.now(), comment='Timestamp of this sync'),
-        Column('version', Integer, comment='Last_modified_version of library used for syncing with Zotero API'),
-        Column('library', String(15), comment='ID of library composed of prefix user or group and library number'),
-        Column('name', String(127), comment='Name of library that was synced'),
-        Column('duration', Integer, comment='How many seconds it took to sync with Zotero API'),
-        schema='zotero'
-    )
+def from_zotero_library(library_id, library_type, api_key = None, key_info = None, db_key = 'conn_string'):
+    skip = False
+    if not library_type[:1] == 'u' and not library_type[:1] == 'g' :
+        print("invalid library_type %s" % library_type)
+        skip = True
+    if library_id > 999999999 :
+        print("invalid group id %i" % library_id)
+        skip = True
+    if skip :
+        print("Skipping library of type %s with id %i ¶\n" % (library_type, library_id))
+        return
+    try:
+        _from_zotero_library(library_id, library_type, api_key, db_key)
+    except Exception as e:
+        library_type_id = "%s_%s_%i" % (str(e)[7:10], library_type[:1], library_id)
+        print("\n%s ¶" % library_type_id)
+        engine = create_engine(config.get('database', db_key))
+        metadata = MetaData(engine)
+        with engine.connect() as db:
+            query = """
+            INSERT INTO zotero.syncs (timestamp, library)
+            VALUES ( DEFAULT, :lib) RETURNING id,timestamp;
+            """
+            sync = db.execute(text(query), lib=library_type_id).fetchone() # ( Int, datetime )
+            print("Sync #%i was aborted at %s" % (sync[0], sync[1].strftime('%c')) )
 
-    metadata.create_all(engine)
-
-def from_zotero_user(user_id = None, api_key = None, key_info = None, db_key = 'conn_string') :
-    if not user_id and not api_key :
-        return "no idea how I should know which user library to sync, neither api_key, nor userID was provided."
-    elif api_key :
-        if not key_info :
-            key_info = _get_key_info(api_key)
-        # this overrides user if given as argument:
-        user_id = key_info['userID']
-        name = "%s's user library" % key_info['username']
-        if not 'user' in key_info['access'] :
-            return "no read access to user library: ", key_info['access']
-    else :
-        print("Warning: fetching user library without API key. How to check?")
-        # todo: check access and abort if 403 access denied
-        name = "user library %s" % user_id
-    return from_zotero_library(user_id, 'user', name, api_key, db_key)
-
-def from_zotero_group(group, api_key = None, key_info = None, db_key = 'conn_string'):
-    return from_zotero_library(group['id'], 'group', group['data']['name'], api_key, db_key)
-
-def from_zotero_library(library_id, library_type, library_name, api_key = None, db_key = 'conn_string'):
-    library_type_id = "zot_"+library_type[:1]+"_"+str(library_id)
-    print(library_type_id)
+def _from_zotero_library(library_id, library_type, api_key = None, db_key = 'conn_string'):
+    library_type_id = "zot_%s_%i" % (library_type[:1], library_id)
 
     # Database connection setup with sqlalchemy
     engine = create_engine(config.get('database', db_key))
     metadata = MetaData(engine, schema=library_type_id)
 
     # Every library gets a separate schema within the database
-    _ensure_schema_exists(engine, metadata, library_type_id)
+    ensure_schema.exists(engine, metadata, library_type_id)
 
     # Setup the Zotero connection through pyzotero
-    z = Zotero(str(library_id), library_type, api_key)
+    z = Zotero(library_id, library_type, api_key)
+    check_access = z.items(limit=1, format="json")
+    library_name = check_access[0]['library']['name']
+
+    print("\n%s %s ¶" % (library_type_id, library_name))
 
     # Start the engine and fetch items from the cloud!
     with engine.connect() as db:
@@ -220,11 +180,20 @@ def from_zotero_library(library_id, library_type, library_name, api_key = None, 
     return "Syncing library %s took %s seconds\n" % (library_type_id, str(duration))
 
 def from_all_by_key(api_key, only_groups = False):
-    groups, key_info = _inspect_api_key(api_key)
-    if not only_groups and 'user' in key_info['access']:
-        print(from_zotero_user(key_info['userID'], api_key, key_info))
-    for group in groups:
-        if not 'groups' in key_info['access'] :
-            return "no groups to sync in this API key starting with %s" % api_key[:4]
-        if str(group['id']) in key_info['access']['groups']:
-            print(from_zotero_group(group, api_key))
+    try:
+        _from_all_by_key(api_key, only_groups)
+    except Exception as e:
+        print("\ninvalid API key starting with %s ¶" % api_key[:3])
+
+def _from_all_by_key(api_key, only_groups = False):
+    key_info = _fetch_key_info(api_key)
+    if 'user' in key_info['access'] and not only_groups :
+        from_zotero_user(key_info['userID'], api_key, key_info)
+    else :
+        return "not syncing user library for API key starting with %s" % api_key[:4]
+
+    if 'groups' in key_info['access']:
+        for group in key_info['access']['groups'] :
+            from_zotero_group(int(group), api_key, key_info)
+    else :
+        return "no groups to sync in this API key starting with %s" % api_key[:4]

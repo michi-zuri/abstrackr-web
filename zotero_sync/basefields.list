@@ -1,6 +1,14 @@
 (
 'key',
 'version',
+'dateAdded',
+'dateModified',
+'tags',
+'collections',
+'relations',
+'itemType',
+
+'creators',
 'abstractNote',
 'accessDate',
 'applicationNumber',
@@ -15,10 +23,7 @@
 'conferenceName',
 'country',
 'court',
-'creators',
 'date',
-'dateAdded',
-'dateModified',
 'DOI',
 'edition',
 'extra',
@@ -61,6 +66,5 @@
 'type',
 'url',
 'versionNumber',
-'volume',
-'websiteType'
+'volume'
 )

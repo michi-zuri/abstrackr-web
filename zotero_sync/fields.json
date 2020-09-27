@@ -102,6 +102,5 @@
 {'videoRecordingFormat': 'medium'},
 {'volume': 'volume'},
 {'websiteTitle': 'publicationTitle'},
-{'websiteType': 'websiteType'}
-{'websiteType': 'type'},
+{'websiteType': 'type'}
 ]
