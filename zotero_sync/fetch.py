@@ -48,10 +48,10 @@ def from_zotero_library(library_id, library_type, api_key = None, key_info = Non
         metadata = MetaData(engine)
         with engine.connect() as db:
             query = """
-            INSERT INTO zotero.sync_logs (timestamp, library)
-            VALUES ( DEFAULT, :lib) RETURNING id,timestamp;
+            INSERT INTO zotero.sync_logs (timestamp, library, name)
+            VALUES ( DEFAULT, :lib, :error) RETURNING id,timestamp;
             """
-            sync = db.execute(text(query), lib=library_type_id).fetchone() # ( Int, datetime )
+            sync = db.execute(text(query), lib=library_type_id, error=str(e)).fetchone() # ( Int, datetime )
             print("Sync #%i was aborted at %s" % (sync[0], sync[1].strftime('%c')) )
 
 def _from_zotero_library(library_id, library_type, api_key = None, db_key = 'conn_string'):
@@ -90,7 +90,7 @@ def _from_zotero_library(library_id, library_type, api_key = None, db_key = 'con
         if res_last_sync_version :
             last_sync_version = res_last_sync_version[0]
             query = """
-            SELECT COUNT(*) FROM %s.references ;
+            SELECT COUNT(*) FROM %s.items ;
             """ % library_type_id
             local_count = db.execute(text(query)).fetchone() # ( Int, ) or None
             print("local mirror is at version %i and contains %i items" % (last_sync_version, local_count[0] ))
@@ -107,7 +107,7 @@ def _from_zotero_library(library_id, library_type, api_key = None, db_key = 'con
         if last_sync_version < library_version :
             # Get list of local item keys and their versions
             query = """
-            SELECT key,version FROM %s.references ;
+            SELECT key,version FROM %s.items ;
             """ % library_type_id
             local_versions = dict(db.execute(text(query)).fetchall()) # { String: Int, }
 
@@ -117,20 +117,31 @@ def _from_zotero_library(library_id, library_type, api_key = None, db_key = 'con
                 update_list = z.top(limit=100, start=start, format='json', since=last_sync_version)
                 # Maybe there are only deletions to handle, so checking number of updates to handle
                 if len(update_list) > 0 :
+                    data = {}
                     for item in update_list :
+                        for field,value in item['data'].items() :
+                            data[field] = str(value)
+                            if field == 'version' :
+                                update_string = "version=:version"
+                                insert_field_string = '"key", "version"'
+                                insert_value_string = ':key, :version'
+                            elif field != 'key' :
+                                update_string += ", %s=:%s" % (field, field)
+                                insert_field_string += ', "%s"' % field
+                                insert_value_string += ', :%s' % field
                         if item['key'] in local_versions :
                             query = """
-                            UPDATE %s.references
-                            SET version=:version, title=:title
+                            UPDATE %s.items
+                            SET %s
                             WHERE key=:key ;
-                            """ % library_type_id
-                            db.execute(text(query), version=item["version"], title=item["data"]["title"], key=item["key"] )
+                            """ % (library_type_id, data_string)
+                            db.execute(text(query), **data )
                         else :
                             query = """
-                            INSERT INTO %s.references (key, version, title)
-                            VALUES ( :key, :version, :title) ;
-                            """ % library_type_id
-                            db.execute(text(query),  key=item["key"], version=item["version"], title=item["data"]["title"] )
+                            INSERT INTO %s.items (%s)
+                            VALUES ( %s ) ;
+                            """ % (library_type_id, insert_field_string, insert_value_string)
+                            db.execute(text(query),  **data )
                             inserts += 1
                     round_duration = _duration(start_round)
                     print( "Finished processing %i updates in %s seconds." % (len(update_list), str(round_duration)) )
@@ -157,7 +168,7 @@ def _from_zotero_library(library_id, library_type, api_key = None, db_key = 'con
                     for item in delete_list['items'] :
                         if item in local_versions:
                             query = """
-                            DELETE FROM %s.references WHERE key=:key ;
+                            DELETE FROM %s.items WHERE key=:key ;
                             """ % library_type_id
                             db.execute(text(query), key=item)
                         else:

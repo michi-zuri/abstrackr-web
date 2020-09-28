@@ -9,19 +9,20 @@ import requests
 config = RawConfigParser()
 config.read(os.path.normpath(os.path.join(os.path.dirname(__file__), r'../config.txt')))
 
-def check_schema() :
+def fetch(flush = False) :
     schema_file = os.path.dirname(__file__)+'/schema.json'
     try :
         with open(schema_file, 'r') as file :
             schema = json.load(file)
     except :
         schema = {}
-    headers = schema.get("headers",{})
-    #disable caching for dev:
-    #headers = {}
+    headers = schema.get('headers',{} )
+    # flush cache
+    if flush :
+        headers = { 'Accept-Encoding' : 'gzip' }
     updated_schema = None
     response = requests.get("https://api.zotero.org/schema", headers=headers)
-    print(response.status_code)
+    #print(response.status_code)
     if response.status_code == 200 :
         updated_schema = response.json()
         updated_schema['headers'] = {}
@@ -41,14 +42,17 @@ def check_schema() :
         with open(schema_file, 'w') as file:
             json.dump(updated_schema, file)
     if updated_schema :
+        print( "The Zotero schema was updated to version last modified %s" % schema['headers']['If-Modified-Since'] )
         return updated_schema
     else :
+        print( "Using cached Zotero schema last modified %s" % schema['headers']['If-Modified-Since'] )
         return schema
 
 def exists(engine, metadata, library_type_id):
     """ Prepare database to accomodate all possible fields for storage.
         Create, schema, tables and columns as needed
     """
+    # Adding fields that are not item type fields
     fields = {}
     fields['key'] = 'varchar(8) PRIMARY KEY'
     fields['version'] = 'integer'
@@ -59,9 +63,8 @@ def exists(engine, metadata, library_type_id):
     fields['tags'] = 'varchar(32767)'
     fields['collections'] = 'varchar(32767)'
     fields['relations'] = 'varchar(32767)'
-    schema = check_schema()
+    schema = fetch()
     fields.update(schema['fields'])
-    print( "The Zotero schema was last modified %s""" % schema['headers']['If-Modified-Since'] )
 
     with engine.connect() as db:
         query = """
@@ -71,11 +74,12 @@ CREATE SCHEMA IF NOT EXISTS %s""" % library_type_id ;
 CREATE TABLE IF NOT EXISTS %s.items ();""" % library_type_id
         db.execute(text(query))
         for field,type in fields.items() :
-            print(field, type)
             query = """
 ALTER TABLE %s.items ADD COLUMN IF NOT EXISTS "%s" %s;
             """ % (library_type_id, field, type)
             db.execute(text(query))
+
+
 
 
         query = """

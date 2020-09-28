@@ -12,7 +12,8 @@ config.read(os.path.normpath(os.path.join(os.path.dirname(__file__), r'./config.
 
 api_key = config.get('zotero', 'api_key')
 
-fetch.from_all_by_key(api_key)
+#fetch.from_all_by_key(api_key)
+fetch.from_zotero_group(88617)
 
 #print("postgresql")
 #abstrackr.generate_predictions.main('conn_string')
