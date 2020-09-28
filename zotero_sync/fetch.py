@@ -112,6 +112,7 @@ def _from_zotero_library(engine, library_id, library_type, api_key = None, verbo
         library_version = int(z.request.headers.get('last-modified-version', 0))
         print("remote cloud is at version %i and contains %i items" % (library_version , remote_count))
 
+        inserts = 0
         if last_sync_version < library_version :
             # Get list of local item keys and their versions
             query = """
@@ -185,6 +186,9 @@ def _from_zotero_library(engine, library_id, library_type, api_key = None, verbo
                             print("Tried to DELETE item with key %s, but this item is not in local library..." % item )
                 round_duration = _duration(start_round)
                 print("Finished processing %i deletions in %s seconds" % ( len(delete_list['items']), str(round_duration) ) )
+                final_count = local_count[0] + inserts - len(delete_list['items'])
+                if final_count > remote_count :
+                    print("todo: handle missing data in /deleted request. %i -> %i " % (final_count, remote_count))
             else :
                 print("Initial sync has been successful. Next time atomic updates will be performed!")
         else :
