@@ -1,20 +1,11 @@
 # https://www.python.org/dev/peps/pep-0263/ encoding: utf-8
 
-import datetime, json, math, os, json
+import datetime, json, math, os
 
-from configparser import RawConfigParser
-from sqlalchemy import create_engine, text, MetaData
+from sqlalchemy import text
 from pyzotero.zotero import Zotero
 
-from . import schema as ensure_schema
-
-config = RawConfigParser()
-config.read(os.path.normpath(os.path.join(os.path.dirname(__file__), r'../config.txt')))
-
-def _fetch_key_info(api_key):
-    z = Zotero('AnyLibrary', 'AnyType', api_key)
-    key_info = z.key_info(limit=0)
-    return key_info
+from . import schema
 
 def _duration(start_time) :
     return (datetime.datetime.now(datetime.timezone.utc)-start_time).total_seconds()
@@ -22,13 +13,35 @@ def _duration(start_time) :
 def _start_duration() :
     return datetime.datetime.now(datetime.timezone.utc)
 
-def from_zotero_user(user_id, api_key = None, key_info = None, db_key = 'conn_string') :
-    from_zotero_library(user_id, 'user', api_key, key_info, db_key)
+def from_zotero_user(engine, user_id, api_key = None,  verbose = False) :
+    from_zotero_library(engine, user_id, 'user', api_key, verbose)
 
-def from_zotero_group(group_id, api_key = None, key_info = None, db_key = 'conn_string'):
-    from_zotero_library(group_id, 'group', api_key, key_info, db_key)
+def from_zotero_group(engine, group_id, api_key = None,  verbose = False):
+    from_zotero_library(engine, group_id, 'group', api_key, verbose)
 
-def from_zotero_library(library_id, library_type, api_key = None, key_info = None, db_key = 'conn_string'):
+def from_all_by_key(engine, api_key, only_groups = False):
+    try:
+        _from_all_by_key(engine, api_key, only_groups)
+    except Exception as e:
+        print("\ninvalid API key starting with %s ¶" % api_key[:3])
+
+def _from_all_by_key(engine, api_key, only_groups = False):
+    z = Zotero('AnyLibrary', 'AnyType', api_key)
+    key_info = z.key_info(limit=None)
+    if 'user' in key_info['access'] and not only_groups :
+        from_zotero_user(engine, key_info['userID'], api_key)
+    else :
+        return "not syncing user library for API key starting with %s" % api_key[:4]
+
+    if 'groups' in key_info['access']:
+        for group in key_info['access']['groups'] :
+            if group == 'all' :
+                continue #Todo: make a from_all_by_user()
+            from_zotero_group(engine, int(group), api_key)
+    else :
+        return "no groups to sync in this API key starting with %s" % api_key[:4]
+
+def from_zotero_library(engine, library_id, library_type, api_key = None,  verbose = False):
     skip = False
     if not library_type[:1] == 'u' and not library_type[:1] == 'g' :
         print("invalid library_type %s" % library_type)
@@ -40,29 +53,24 @@ def from_zotero_library(library_id, library_type, api_key = None, key_info = Non
         print("Skipping library of type %s with id %i ¶\n" % (library_type, library_id))
         return
     try:
-        _from_zotero_library(library_id, library_type, api_key, db_key)
+        _from_zotero_library(engine, library_id, library_type, api_key, verbose)
     except Exception as e:
         library_type_id = "%s_%s_%i" % (str(e)[7:10], library_type[:1], library_id)
         print("\n%s ¶" % library_type_id)
-        engine = create_engine(config.get('database', db_key))
-        metadata = MetaData(engine)
         with engine.connect() as db:
             query = """
-            INSERT INTO zotero.sync_logs (timestamp, library, name)
+            INSERT INTO sync.logs (timestamp, library, name)
             VALUES ( DEFAULT, :lib, :error) RETURNING id,timestamp;
             """
             sync = db.execute(text(query), lib=library_type_id, error=str(e)).fetchone() # ( Int, datetime )
             print("Sync #%i was aborted at %s" % (sync[0], sync[1].strftime('%c')) )
 
-def _from_zotero_library(library_id, library_type, api_key = None, db_key = 'conn_string'):
+def _from_zotero_library(engine, library_id, library_type, api_key = None, verbose = False):
     library_type_id = "zot_%s_%i" % (library_type[:1], library_id)
 
-    # Database connection setup with sqlalchemy
-    engine = create_engine(config.get('database', db_key))
-    metadata = MetaData(engine, schema=library_type_id)
-
     # Every library gets a separate schema within the database
-    fields = ensure_schema.exists(engine, metadata, library_type_id)
+    item_type_schema = schema.for_library(engine, library_type_id, verbose)
+    # returns dictionary of item table fields.
 
     # Setup the Zotero connection through pyzotero
     z = Zotero(library_id, library_type, api_key)
@@ -76,7 +84,7 @@ def _from_zotero_library(library_id, library_type, api_key = None, db_key = 'con
         # Start sync timer and log attempt to sync.
         # Duration and latest version will be updated when finished.
         query = """
-        INSERT INTO zotero.sync_logs (timestamp, library, name)
+        INSERT INTO sync.logs (timestamp, library, name)
         VALUES ( DEFAULT, :lib, :name) RETURNING id,timestamp;
         """
         sync = db.execute(text(query), lib=library_type_id, name=library_name).fetchone() # ( Int, datetime )
@@ -84,7 +92,7 @@ def _from_zotero_library(library_id, library_type, api_key = None, db_key = 'con
 
         # Get current local library version
         query = """
-        SELECT version FROM zotero.sync_logs WHERE library='%s' AND duration IS NOT NULL ORDER BY version DESC LIMIT 1;
+        SELECT version FROM sync.logs WHERE library='%s' AND duration IS NOT NULL ORDER BY version DESC LIMIT 1;
         """ % library_type_id
         res_last_sync_version = db.execute(text(query)).fetchone() # ( Int, ) or None
         if res_last_sync_version :
@@ -115,42 +123,44 @@ def _from_zotero_library(library_id, library_type, api_key = None, db_key = 'con
                 start_round = _start_duration()
                 inserts = 0
                 update_list = z.top(limit=100, start=start, format='json', since=last_sync_version)
+                total_results = int(z.request.headers.get('Total-Results'))
                 # Maybe there are only deletions to handle, so checking number of updates to handle
                 if len(update_list) > 0 :
-                    data = {}
                     for item in update_list :
+                        data = {}
                         for field,value in item['data'].items() :
-                            data[field] = str(value)
+                            data[field] = schema._typeset_for_db(field, value, item['data']['itemType'])
                             if field == 'version' :
-                                update_string = "version=:version"
+                                update_string = '"version"=:version'
                                 insert_field_string = '"key", "version"'
                                 insert_value_string = ':key, :version'
                             elif field != 'key' :
-                                update_string += ", %s=:%s" % (field, field)
+                                update_string += ', "%s"=:%s' % (field, field)
                                 insert_field_string += ', "%s"' % field
                                 insert_value_string += ', :%s' % field
+                        item_type = item['data']['itemType']
                         if item['key'] in local_versions :
                             query = """
-                            UPDATE %s.items
+                            UPDATE %s."%s"
                             SET %s
                             WHERE key=:key ;
-                            """ % (library_type_id, data_string)
+                            """ % (library_type_id, item_type, update_string)
                             db.execute(text(query), **data )
                         else :
                             query = """
-                            INSERT INTO %s.items (%s)
+                            INSERT INTO %s."%s" (%s)
                             VALUES ( %s ) ;
-                            """ % (library_type_id, insert_field_string, insert_value_string)
+                            """ % (library_type_id, item_type, insert_field_string, insert_value_string)
                             db.execute(text(query),  **data )
                             inserts += 1
                     round_duration = _duration(start_round)
                     print( "Finished processing %i updates in %s seconds." % (len(update_list), str(round_duration)) )
-                    if len(update_list) == 100 :
+                    if len(update_list) == 100 and start+100 < total_results :
                         # fetch more updates. There is a 1% chance that this will be in vain.
-                        print( "Fetching more updates now." )
+                        print( "%i of %i updates done: fetching more updates now." % (start+100, total_results) )
                         _fetch_updates_and_inserts(start=start+100)
                     else :
-                        print( "All updates processed." )
+                        print( "%i of %i updates were processed." % ( total_results, total_results ) )
                 else :
                     round_duration = _duration(start_round)
                     print( "Zero updates to process (it took %s seconds to figure that out)" % str(round_duration) )
@@ -163,7 +173,7 @@ def _from_zotero_library(library_id, library_type, api_key = None, db_key = 'con
                 start_round = _start_duration()
                 print( "Fetching list of deletions since last successful sync." )
                 # Get list of deleted items from cloud
-                delete_list = z.deleted(limit=None, format='versions', since=last_sync_version)
+                delete_list = z.deleted(since=last_sync_version)
                 if len(delete_list['items']) > 0:
                     for item in delete_list['items'] :
                         if item in local_versions:
@@ -182,29 +192,10 @@ def _from_zotero_library(library_id, library_type, api_key = None, db_key = 'con
 
         duration = _duration(sync[1])
         query = """
-        UPDATE zotero.sync_logs
+        UPDATE sync.logs
         SET duration=:duration, version=:version
         WHERE id=:id ;
         """
         db.execute(text(query), duration=math.ceil(duration), version=library_version, id=sync[0])
         # Closing connection to database ༺ with engine.connect() as db : ༻
-    return "Syncing library %s took %s seconds\n" % (library_type_id, str(duration))
-
-def from_all_by_key(api_key, only_groups = False):
-    try:
-        _from_all_by_key(api_key, only_groups)
-    except Exception as e:
-        print("\ninvalid API key starting with %s ¶" % api_key[:3])
-
-def _from_all_by_key(api_key, only_groups = False):
-    key_info = _fetch_key_info(api_key)
-    if 'user' in key_info['access'] and not only_groups :
-        from_zotero_user(key_info['userID'], api_key, key_info)
-    else :
-        return "not syncing user library for API key starting with %s" % api_key[:4]
-
-    if 'groups' in key_info['access']:
-        for group in key_info['access']['groups'] :
-            from_zotero_group(int(group), api_key, key_info)
-    else :
-        return "no groups to sync in this API key starting with %s" % api_key[:4]
+    print("Syncing library %s took %s seconds\n" % (library_type_id, str(duration)))

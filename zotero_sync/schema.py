@@ -2,15 +2,11 @@
 
 import datetime, json, math, os
 
-from configparser import RawConfigParser
-from sqlalchemy import create_engine, func, text, Column, DateTime, Integer, MetaData, String, Table
+from sqlalchemy import create_engine, text
 import requests
 
-config = RawConfigParser()
-config.read(os.path.normpath(os.path.join(os.path.dirname(__file__), r'../config.txt')))
-
-def fetch(flush = False) :
-    schema_file = os.path.dirname(__file__)+'/schema.json'
+def from_zotero(flush = False, verbose = False) :
+    schema_file = os.path.normpath(os.path.join(os.path.dirname(__file__), './schema.json'))
     try :
         with open(schema_file, 'r') as file :
             schema = json.load(file)
@@ -22,7 +18,8 @@ def fetch(flush = False) :
         headers = { 'Accept-Encoding' : 'gzip' }
     updated_schema = None
     response = requests.get("https://api.zotero.org/schema", headers=headers)
-    #print(response.status_code)
+    if verbose :
+        print(response.status_code)
     if response.status_code == 200 :
         updated_schema = response.json()
         updated_schema['headers'] = {}
@@ -33,10 +30,10 @@ def fetch(flush = False) :
         for type in updated_schema['itemTypes'] :
             for field in type['fields'] :
                 key = field.get('baseField',field['field'])
-                if key=='accessDate' or key=='filingDate' or key=='date' :
+                if key=='accessDate' :
                     unsorted_fields[key] = 'timestamp'
                 else :
-                    unsorted_fields[key] = 'varchar(32767)'
+                    unsorted_fields[key] = 'varchar(65535)'
         sorted_fields = sorted(unsorted_fields.items())
         updated_schema['fields'] = dict(sorted_fields)
         with open(schema_file, 'w') as file:
@@ -44,90 +41,131 @@ def fetch(flush = False) :
     if updated_schema :
         print( "The Zotero schema was updated to version last modified %s" % schema['headers']['If-Modified-Since'] )
         return updated_schema
-    else :
-        print( "Using cached Zotero schema last modified %s" % schema['headers']['If-Modified-Since'] )
+    elif schema :
+        if verbose :
+            print( "Using cached Zotero schema last modified %s" % schema['headers']['If-Modified-Since'] )
         return schema
+    else :
+        raise ValueError("Schema could not be loaded for the Zotero API.")
 
-def exists(engine, metadata, library_type_id):
-    """ Prepare database to accomodate all possible fields for storage.
-        Create, schema, tables and columns as needed
-    """
-    # Adding fields that are not item type fields
+def _system_fields() :
     fields = {}
     fields['key'] = 'varchar(8) PRIMARY KEY'
     fields['version'] = 'integer'
     fields['itemType'] = 'varchar(20)'
     fields['dateAdded'] = 'timestamp with time zone'
     fields['dateModified'] = 'timestamp with time zone'
-    fields['creators'] = 'varchar(32767)'
-    fields['tags'] = 'varchar(32767)'
-    fields['collections'] = 'varchar(32767)'
-    fields['relations'] = 'varchar(32767)'
-    schema = fetch()
+    fields['creators'] = 'varchar(65535)'
+    fields['tags'] = 'varchar(65535)'
+    fields['collections'] = 'varchar(65535)'
+    fields['relations'] = 'varchar(65535)'
+    return fields
+
+def for_library(engine, library_type_id, verbose = False):
+    """ Prepare database table to accomodate all possible fields for storage.
+        Creates a schema, tables, views and columns as needed
+    """
+    fields = _system_fields()
+    schema = from_zotero(verbose)
     fields.update(schema['fields'])
 
     with engine.connect() as db:
+
         query = """
 CREATE SCHEMA IF NOT EXISTS %s""" % library_type_id ;
         db.execute(text(query))
+        if verbose :
+            print(query)
+
         query = """
 CREATE TABLE IF NOT EXISTS %s.items ();""" % library_type_id
         db.execute(text(query))
+        if verbose :
+            print(query)
+
         for field,type in fields.items() :
             query = """
 ALTER TABLE %s.items ADD COLUMN IF NOT EXISTS "%s" %s;
             """ % (library_type_id, field, type)
             db.execute(text(query))
+            if verbose :
+                print(query)
 
+        for item_type in schema['itemTypes'] :
+            view_fields = [ '"%s"'% s for s in list(_system_fields().keys()) ]
+            for field in item_type['fields'] :
+                view_name = field['field']
+                base_name = field.get('baseField', None)
+                if base_name :
+                    alias_name = '"%s" AS "%s"' % (base_name, view_name)
+                else :
+                    alias_name = '"%s"' % view_name
+                view_fields.append(alias_name)
+            field_string = ', '.join(view_fields)
+            query = """
+CREATE OR REPLACE VIEW %s."%s" AS
+SELECT %s FROM %s.items WHERE "itemType" = :type ;
+            """ % (library_type_id, item_type['itemType'], field_string, library_type_id)
+            db.execute(text(query), type = item_type['itemType'])
+            if verbose :
+                print(query)
 
+    return schema
 
+def entry(database = None, verbose = False):
+    """ Prepare database for sync logging.
+        Creates a schema, tables, views and columns as needed
+    """
+    fields = {}
+    fields['id'] = 'serial PRIMARY KEY'
+    fields['timestamp'] = 'timestamp with time zone DEFAULT now()'
+    fields['version'] = 'integer'
+    fields['library'] = 'varchar(15)'
+    fields['name'] = 'varchar(255)'
+    fields['duration'] = 'integer'
 
-        query = """
-CREATE SCHEMA IF NOT EXISTS zotero ;"""
-        db.execute(text(query))
-        query = """
-CREATE TABLE IF NOT EXISTS zotero.sync_logs ();"""
-        db.execute(text(query))
-        query = """
-ALTER TABLE zotero.sync_logs ADD COLUMN IF NOT EXISTS "%s" %s PRIMARY KEY;
-        """ % ('id', 'serial')
-        db.execute(text(query))
-        query = """
-ALTER TABLE zotero.sync_logs ADD COLUMN IF NOT EXISTS "%s" %s ;
-        """ % ('timestamp', 'timestamp with time zone DEFAULT now()')
-        db.execute(text(query))
-        query = """
-ALTER TABLE zotero.sync_logs ADD COLUMN IF NOT EXISTS "%s" %s ;
-        """ % ('version', 'integer')
-        db.execute(text(query))
-        query = """
-ALTER TABLE zotero.sync_logs ADD COLUMN IF NOT EXISTS "%s" %s ;
-        """ % ('library', 'varchar(15)')
-        db.execute(text(query))
-        query = """
-ALTER TABLE zotero.sync_logs ADD COLUMN IF NOT EXISTS "%s" %s ;
-        """ % ('name', 'varchar(255)')
-        db.execute(text(query))
-        query = """
-ALTER TABLE zotero.sync_logs ADD COLUMN IF NOT EXISTS "%s" %s ;
-        """ % ('duration', 'integer')
-        db.execute(text(query))
-
-    return schema['fields']
-
-if __name__ == "__main__" :
-    library_type_id="zot_t_testing"
     # Database connection setup with sqlalchemy
-    engine = create_engine(config.get('database', 'conn_string'))
-    metadata = MetaData(engine, schema='library_type_id')
-    exists(engine, metadata, library_type_id)
+    engine = create_engine(database)
 
+    with engine.connect() as db:
+
+        query = """
+CREATE SCHEMA IF NOT EXISTS sync ;"""
+        db.execute(text(query))
+        if verbose :
+            print(query)
+
+        query = """
+CREATE TABLE IF NOT EXISTS sync.logs ();"""
+        db.execute(text(query))
+        if verbose :
+            print(query)
+
+        for field,type in fields.items() :
+            query = """
+ALTER TABLE sync.logs ADD COLUMN IF NOT EXISTS "%s" %s;
+            """ % (field, type)
+            db.execute(text(query))
+            if verbose :
+                print(query)
+
+    # pass on engine for further connections
+    return engine
+
+def _typeset_for_db(field, value, item_type, schema = None) :
+    if type(value) != int and len(value)==0 :
+        return None
+    elif field in ('collections', 'creators', 'tags', 'relations' ) :
+        return str(value)
+    else :
+        return value
 
 '''
+Todo: make table for local enrichments to data.
 Column('pmid', Integer, comment='Pubmed identifier'),
 Column('eid', Integer, comment='Scopus electronic identifier: the prefix `2-s2.0-` is omitted'),
 Column('keywords', String(1000), comment='keywords suggested by the author(s)'),
-Column('CAS', String(1000), comment='Chemical Abstracts Service identifier for chemical substances, as indexed by Scopus'),
+Column('CAS', String(1000), comment='Chemical Abstracts Service identifier for chemical substances'),
 Column('MeSH', String(1000), comment='Medical Subject Headings indexed by MEDLINE'),
 Column('EMTREE', String(1000), comment='EMTREE indexed by EMBASE'),
 '''
