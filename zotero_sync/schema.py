@@ -18,7 +18,7 @@ def check_schema() :
         schema = {}
     headers = schema.get("headers",{})
     #disable caching for dev:
-    headers = {}
+    #headers = {}
     updated_schema = None
     response = requests.get("https://api.zotero.org/schema", headers=headers)
     print(response.status_code)
@@ -45,13 +45,24 @@ def check_schema() :
     else :
         return schema
 
-schema = check_schema()
-print( "The Zotero schema was last modified %s""" % schema['headers']['If-Modified-Since'] )
-
 def exists(engine, metadata, library_type_id):
     """ Prepare database to accomodate all possible fields for storage.
         Create, schema, tables and columns as needed
     """
+    fields = {}
+    fields['key'] = 'varchar(8) PRIMARY KEY'
+    fields['version'] = 'integer'
+    fields['itemType'] = 'varchar(20)'
+    fields['dateAdded'] = 'timestamp with time zone'
+    fields['dateModified'] = 'timestamp with time zone'
+    fields['creators'] = 'varchar(32767)'
+    fields['tags'] = 'varchar(32767)'
+    fields['collections'] = 'varchar(32767)'
+    fields['relations'] = 'varchar(32767)'
+    schema = check_schema()
+    fields.update(schema['fields'])
+    print( "The Zotero schema was last modified %s""" % schema['headers']['If-Modified-Since'] )
+
     with engine.connect() as db:
         query = """
 CREATE SCHEMA IF NOT EXISTS %s""" % library_type_id ;
@@ -59,33 +70,8 @@ CREATE SCHEMA IF NOT EXISTS %s""" % library_type_id ;
         query = """
 CREATE TABLE IF NOT EXISTS %s.items ();""" % library_type_id
         db.execute(text(query))
-        query = """
-ALTER TABLE %s.items ADD COLUMN IF NOT EXISTS "%s" %s PRIMARY KEY;
-        """ % (library_type_id, 'key', 'varchar(8)')
-        db.execute(text(query))
-        query = """
-ALTER TABLE %s.items ADD COLUMN IF NOT EXISTS "%s" %s;
-        """ % (library_type_id, 'version', 'integer')
-        db.execute(text(query))
-        query = """
-ALTER TABLE %s.items ADD COLUMN IF NOT EXISTS "%s" %s;
-        """ % (library_type_id, 'itemType', 'varchar(20)')
-        db.execute(text(query))
-        query = """
-ALTER TABLE %s.items ADD COLUMN IF NOT EXISTS "%s" %s;
-        """ % (library_type_id, 'dateAdded', 'timestamp with time zone')
-        db.execute(text(query))
-        query = """
-ALTER TABLE %s.items ADD COLUMN IF NOT EXISTS "%s" %s;
-        """ % (library_type_id, 'dateModified', 'timestamp with time zone')
-        db.execute(text(query))
-        foreign_columns = [ 'creators', 'tags', 'collections', 'relations' ]
-        for field in foreign_columns :
-            query = """
-ALTER TABLE %s.items ADD COLUMN IF NOT EXISTS "%s" %s;
-            """ % (library_type_id, field, 'varchar(32767)')
-            db.execute(text(query))
-        for field,type in schema['fields'].items() :
+        for field,type in fields.items() :
+            print(field, type)
             query = """
 ALTER TABLE %s.items ADD COLUMN IF NOT EXISTS "%s" %s;
             """ % (library_type_id, field, type)
@@ -100,7 +86,7 @@ CREATE TABLE IF NOT EXISTS zotero.sync_logs ();"""
         db.execute(text(query))
         query = """
 ALTER TABLE zotero.sync_logs ADD COLUMN IF NOT EXISTS "%s" %s PRIMARY KEY;
-        """ % ('id', 'integer DEFAULT nextval(\'zotero.sync_logs_id_seq\'::regclass)')
+        """ % ('id', 'serial')
         db.execute(text(query))
         query = """
 ALTER TABLE zotero.sync_logs ADD COLUMN IF NOT EXISTS "%s" %s ;
@@ -122,25 +108,15 @@ ALTER TABLE zotero.sync_logs ADD COLUMN IF NOT EXISTS "%s" %s ;
 ALTER TABLE zotero.sync_logs ADD COLUMN IF NOT EXISTS "%s" %s ;
         """ % ('duration', 'integer')
         db.execute(text(query))
-'''
-    t_syncs = Table("syncs", metadata,
-        Column('id', Integer, primary_key=True),
-        Column('timestamp', DateTime(True), server_default=func.now(), comment='Timestamp of this sync'),
-        Column('version', Integer, comment='Last_modified_version of library used for syncing with Zotero API'),
-        Column('library', String(15), comment='ID of library composed of prefix user or group and library number'),
-        Column('name', String(255), comment='Name of library that was synced'),
-        Column('duration', Integer, comment='How many seconds it took to sync with Zotero API'),
-        schema='zotero'
-    )
 
-    metadata.create_all(engine)
-'''
+    return schema['fields']
 
-library_type_id="zot_t_testing"
-# Database connection setup with sqlalchemy
-engine = create_engine(config.get('database', 'conn_string'))
-metadata = MetaData(engine, schema='library_type_id')
-exists(engine, metadata, library_type_id)
+if __name__ == "__main__" :
+    library_type_id="zot_t_testing"
+    # Database connection setup with sqlalchemy
+    engine = create_engine(config.get('database', 'conn_string'))
+    metadata = MetaData(engine, schema='library_type_id')
+    exists(engine, metadata, library_type_id)
 
 
 '''

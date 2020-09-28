@@ -48,7 +48,7 @@ def from_zotero_library(library_id, library_type, api_key = None, key_info = Non
         metadata = MetaData(engine)
         with engine.connect() as db:
             query = """
-            INSERT INTO zotero.syncs (timestamp, library)
+            INSERT INTO zotero.sync_logs (timestamp, library)
             VALUES ( DEFAULT, :lib) RETURNING id,timestamp;
             """
             sync = db.execute(text(query), lib=library_type_id).fetchone() # ( Int, datetime )
@@ -62,7 +62,7 @@ def _from_zotero_library(library_id, library_type, api_key = None, db_key = 'con
     metadata = MetaData(engine, schema=library_type_id)
 
     # Every library gets a separate schema within the database
-    ensure_schema.exists(engine, metadata, library_type_id)
+    fields = ensure_schema.exists(engine, metadata, library_type_id)
 
     # Setup the Zotero connection through pyzotero
     z = Zotero(library_id, library_type, api_key)
@@ -76,7 +76,7 @@ def _from_zotero_library(library_id, library_type, api_key = None, db_key = 'con
         # Start sync timer and log attempt to sync.
         # Duration and latest version will be updated when finished.
         query = """
-        INSERT INTO zotero.syncs (timestamp, library, name)
+        INSERT INTO zotero.sync_logs (timestamp, library, name)
         VALUES ( DEFAULT, :lib, :name) RETURNING id,timestamp;
         """
         sync = db.execute(text(query), lib=library_type_id, name=library_name).fetchone() # ( Int, datetime )
@@ -84,7 +84,7 @@ def _from_zotero_library(library_id, library_type, api_key = None, db_key = 'con
 
         # Get current local library version
         query = """
-        SELECT version FROM zotero.syncs WHERE library='%s' AND duration IS NOT NULL ORDER BY version DESC LIMIT 1;
+        SELECT version FROM zotero.sync_logs WHERE library='%s' AND duration IS NOT NULL ORDER BY version DESC LIMIT 1;
         """ % library_type_id
         res_last_sync_version = db.execute(text(query)).fetchone() # ( Int, ) or None
         if res_last_sync_version :
@@ -171,7 +171,7 @@ def _from_zotero_library(library_id, library_type, api_key = None, db_key = 'con
 
         duration = _duration(sync[1])
         query = """
-        UPDATE zotero.syncs
+        UPDATE zotero.sync_logs
         SET duration=:duration, version=:version
         WHERE id=:id ;
         """
