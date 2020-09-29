@@ -13,10 +13,10 @@ def _duration(start_time) :
 def _start_duration() :
     return datetime.datetime.now(datetime.timezone.utc)
 
-def from_zotero_user(engine, user_id, api_key = None,  verbose = False) :
+def from_zotero_user(engine, user_id, api_key = None, verbose = False) :
     from_zotero_library(engine, user_id, 'user', api_key, verbose)
 
-def from_zotero_group(engine, group_id, api_key = None,  verbose = False):
+def from_zotero_group(engine, group_id, api_key = None, verbose = False):
     from_zotero_library(engine, group_id, 'group', api_key, verbose)
 
 def from_all_by_key(engine, api_key, only_groups = False):
@@ -52,6 +52,8 @@ def from_zotero_library(engine, library_id, library_type, api_key = None,  verbo
     if skip :
         print("Skipping library of type %s with id %i ¶\n" % (library_type, library_id))
         return
+    if verbose :
+        _from_zotero_library(engine, library_id, library_type, api_key, verbose)
     try:
         _from_zotero_library(engine, library_id, library_type, api_key, verbose)
     except Exception as e:
@@ -74,7 +76,7 @@ def _from_zotero_library(engine, library_id, library_type, api_key = None, verbo
 
     # Setup the Zotero connection through pyzotero
     z = Zotero(library_id, library_type, api_key)
-    check_access = z.items(limit=1, format="json")
+    check_access = z.items(limit=1, format="json", includeTrashed=1)
     library_name = check_access[0]['library']['name']
 
     print("\n%s %s ¶" % (library_type_id, library_name))
@@ -98,7 +100,7 @@ def _from_zotero_library(engine, library_id, library_type, api_key = None, verbo
         if res_last_sync_version :
             last_sync_version = res_last_sync_version[0]
             query = """
-            SELECT COUNT(*) FROM %s.items ;
+            SELECT COUNT(*) FROM %s.items WHERE NOT deleted ;
             """ % library_type_id
             local_count = db.execute(text(query)).fetchone() # ( Int, ) or None
             print("local mirror is at version %i and contains %i items" % (last_sync_version, local_count[0] ))
@@ -112,7 +114,6 @@ def _from_zotero_library(engine, library_id, library_type, api_key = None, verbo
         library_version = int(z.request.headers.get('last-modified-version', 0))
         print("remote cloud is at version %i and contains %i items" % (library_version , remote_count))
 
-        inserts = 0
         if last_sync_version < library_version :
             # Get list of local item keys and their versions
             query = """
@@ -120,10 +121,10 @@ def _from_zotero_library(engine, library_id, library_type, api_key = None, verbo
             """ % library_type_id
             local_versions = dict(db.execute(text(query)).fetchall()) # { String: Int, }
 
-            def _fetch_updates_and_inserts( start = 0) :
+            def _fetch_updates_and_inserts( start = 0 ) :
                 start_round = _start_duration()
                 inserts = 0
-                update_list = z.top(limit=100, start=start, format='json', since=last_sync_version)
+                update_list = z.top(limit=100, start=start, format='json', since=last_sync_version, includeTrashed=1)
                 total_results = int(z.request.headers.get('Total-Results'))
                 # Maybe there are only deletions to handle, so checking number of updates to handle
                 if len(update_list) > 0 :
@@ -157,24 +158,23 @@ def _from_zotero_library(engine, library_id, library_type, api_key = None, verbo
                     round_duration = _duration(start_round)
                     print( "Finished processing %i updates in %s seconds." % (len(update_list), str(round_duration)) )
                     if len(update_list) == 100 and start+100 < total_results :
-                        # fetch more updates. There is a 1% chance that this will be in vain.
                         print( "%i of %i updates done: fetching more updates now." % (start+100, total_results) )
-                        _fetch_updates_and_inserts(start=start+100)
+                        inserts = inserts + _fetch_updates_and_inserts(start=start+100)
                     else :
-                        print( "%i of %i updates were processed." % ( total_results, total_results ) )
+                        print( "%i of %i updates have been processed." % ( total_results, total_results ) )
                 else :
                     round_duration = _duration(start_round)
                     print( "Zero updates to process (it took %s seconds to figure that out)" % str(round_duration) )
-
+                return inserts
             # fetch all updates in batches of 100 (includes updates to existing items and new items)
-            _fetch_updates_and_inserts()
+            inserts = _fetch_updates_and_inserts()
 
-            # if this is not the initial sync, there's nothing to delete...
-            if last_sync_version > 0:
+            def _fetch_deletions(since_version) :
+                deletions = 0
                 start_round = _start_duration()
                 print( "Fetching list of deletions since last successful sync." )
                 # Get list of deleted items from cloud
-                delete_list = z.deleted(since=last_sync_version)
+                delete_list = z.deleted(since=since_version)
                 if len(delete_list['items']) > 0:
                     for item in delete_list['items'] :
                         if item in local_versions:
@@ -182,13 +182,17 @@ def _from_zotero_library(engine, library_id, library_type, api_key = None, verbo
                             DELETE FROM %s.items WHERE key=:key ;
                             """ % library_type_id
                             db.execute(text(query), key=item)
+                            deletions += 1
                         else:
                             print("Tried to DELETE item with key %s, but this item is not in local library..." % item )
                 round_duration = _duration(start_round)
                 print("Finished processing %i deletions in %s seconds" % ( len(delete_list['items']), str(round_duration) ) )
-                final_count = local_count[0] + inserts - len(delete_list['items'])
-                if final_count > remote_count :
-                    print("todo: handle missing data in /deleted request. %i -> %i " % (final_count, remote_count))
+                return deletions
+
+            # if this is not the initial sync, there's nothing to delete...
+            if last_sync_version > 0:
+                deletions = _fetch_deletions(last_sync_version)
+                final_count = local_count[0] + inserts - deletions
             else :
                 print("Initial sync has been successful. Next time atomic updates will be performed!")
         else :

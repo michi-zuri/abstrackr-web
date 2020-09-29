@@ -52,6 +52,7 @@ def _system_fields() :
     fields = {}
     fields['key'] = 'varchar(8) PRIMARY KEY'
     fields['version'] = 'integer'
+    fields['deleted'] = 'boolean DEFAULT FALSE'
     fields['itemType'] = 'varchar(20)'
     fields['dateAdded'] = 'timestamp with time zone'
     fields['dateModified'] = 'timestamp with time zone'
@@ -155,7 +156,7 @@ ALTER TABLE sync.logs ADD COLUMN IF NOT EXISTS "%s" %s;
 def _typeset_for_db(field, value, item_type, schema = None) :
     if type(value) != int and len(value)==0 :
         return None
-    elif field in ('collections', 'creators', 'tags', 'relations' ) :
+    elif field in ('collections', 'creators', 'tags', 'relations', 'deleted' ) :
         return str(value)
     else :
         return value
