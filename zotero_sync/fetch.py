@@ -61,7 +61,7 @@ def from_zotero_library(engine, library_id, library_type, api_key = None,  verbo
         print("\n%s ¶" % library_type_id)
         with engine.connect() as db:
             query = """
-            INSERT INTO sync.logs (timestamp, library, name)
+            INSERT INTO logs.zot_fetch (timestamp, library, name)
             VALUES ( DEFAULT, :lib, :error) RETURNING id,timestamp;
             """
             sync = db.execute(text(query), lib=library_type_id, error=str(e)).fetchone() # ( Int, datetime )
@@ -86,7 +86,7 @@ def _from_zotero_library(engine, library_id, library_type, api_key = None, verbo
         # Start sync timer and log attempt to sync.
         # Duration and latest version will be updated when finished.
         query = """
-        INSERT INTO sync.logs (timestamp, library, name)
+        INSERT INTO logs.zot_fetch (timestamp, library, name)
         VALUES ( DEFAULT, :lib, :name) RETURNING id,timestamp;
         """
         sync = db.execute(text(query), lib=library_type_id, name=library_name).fetchone() # ( Int, datetime )
@@ -94,7 +94,7 @@ def _from_zotero_library(engine, library_id, library_type, api_key = None, verbo
 
         # Get current local library version
         query = """
-        SELECT version FROM sync.logs WHERE library='%s' AND duration IS NOT NULL ORDER BY version DESC LIMIT 1;
+        SELECT version FROM logs.zot_fetch WHERE library='%s' AND duration IS NOT NULL ORDER BY version DESC LIMIT 1;
         """ % library_type_id
         res_last_sync_version = db.execute(text(query)).fetchone() # ( Int, ) or None
         if res_last_sync_version :
@@ -200,7 +200,7 @@ def _from_zotero_library(engine, library_id, library_type, api_key = None, verbo
 
         duration = _duration(sync[1])
         query = """
-        UPDATE sync.logs
+        UPDATE logs.zot_fetch
         SET duration=:duration, version=:version
         WHERE id=:id ;
         """

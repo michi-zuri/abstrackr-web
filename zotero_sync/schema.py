@@ -5,6 +5,46 @@ import datetime, json, math, os
 from sqlalchemy import create_engine, text
 import requests
 
+def entry(database = None, verbose = False):
+    """ Prepare database for sync logging.
+        Creates a schema, tables, views and columns as needed
+    """
+    fields = {}
+    fields['id'] = 'serial PRIMARY KEY'
+    fields['timestamp'] = 'timestamp with time zone DEFAULT now()'
+    fields['version'] = 'integer'
+    fields['library'] = 'varchar(15)'
+    fields['name'] = 'varchar(255)'
+    fields['duration'] = 'integer'
+
+    # Database connection setup with sqlalchemy
+    engine = create_engine(database)
+
+    with engine.connect() as db:
+
+        query = """
+CREATE SCHEMA IF NOT EXISTS logs ;"""
+        db.execute(text(query))
+        if verbose :
+            print(query)
+
+        query = """
+CREATE TABLE IF NOT EXISTS logs.zot_fetch ();"""
+        db.execute(text(query))
+        if verbose :
+            print(query)
+
+        for field,type in fields.items() :
+            query = """
+ALTER TABLE logs.zot_fetch ADD COLUMN IF NOT EXISTS "%s" %s;
+            """ % (field, type)
+            db.execute(text(query))
+            if verbose :
+                print(query)
+
+    # pass on engine for further connections
+    return engine
+
 def from_zotero(flush = False, verbose = False) :
     schema_file = os.path.normpath(os.path.join(os.path.dirname(__file__), './schema.json'))
     try :
@@ -113,46 +153,6 @@ SELECT %s FROM %s.items WHERE "itemType" = :type ;
 
     return schema
 
-def entry(database = None, verbose = False):
-    """ Prepare database for sync logging.
-        Creates a schema, tables, views and columns as needed
-    """
-    fields = {}
-    fields['id'] = 'serial PRIMARY KEY'
-    fields['timestamp'] = 'timestamp with time zone DEFAULT now()'
-    fields['version'] = 'integer'
-    fields['library'] = 'varchar(15)'
-    fields['name'] = 'varchar(255)'
-    fields['duration'] = 'integer'
-
-    # Database connection setup with sqlalchemy
-    engine = create_engine(database)
-
-    with engine.connect() as db:
-
-        query = """
-CREATE SCHEMA IF NOT EXISTS sync ;"""
-        db.execute(text(query))
-        if verbose :
-            print(query)
-
-        query = """
-CREATE TABLE IF NOT EXISTS sync.logs ();"""
-        db.execute(text(query))
-        if verbose :
-            print(query)
-
-        for field,type in fields.items() :
-            query = """
-ALTER TABLE sync.logs ADD COLUMN IF NOT EXISTS "%s" %s;
-            """ % (field, type)
-            db.execute(text(query))
-            if verbose :
-                print(query)
-
-    # pass on engine for further connections
-    return engine
-
 def _typeset_for_db(field, value, item_type, schema = None) :
     if type(value) != int and len(value)==0 :
         return None
@@ -160,6 +160,9 @@ def _typeset_for_db(field, value, item_type, schema = None) :
         return str(value)
     else :
         return value
+
+def for_abstrackr() :
+    print("abstrackr schema generation")
 
 '''
 Todo: make table for local enrichments to data.
@@ -169,4 +172,16 @@ Column('keywords', String(1000), comment='keywords suggested by the author(s)'),
 Column('CAS', String(1000), comment='Chemical Abstracts Service identifier for chemical substances'),
 Column('MeSH', String(1000), comment='Medical Subject Headings indexed by MEDLINE'),
 Column('EMTREE', String(1000), comment='EMTREE indexed by EMBASE'),
+'''
+
+'''
+Tables for Abstrackr predictor
+    t_citations = Table("citations", metadata, autoload=True)
+    t_labels = Table("labels", metadata, autoload=True)
+    t_reviews = Table("projects", metadata, autoload=True)
+    t_prediction_status = Table("predictionstatuses", metadata, autoload=True)
+    t_predictions = Table("predictions", metadata, autoload=True)
+    t_priorities = Table("priorities", metadata, autoload=True)
+    #t_users = Table("user", metadata, autoload=True)
+    #t_labeled_features = Table("labeledfeatures", metadata, autoload=True)
 '''

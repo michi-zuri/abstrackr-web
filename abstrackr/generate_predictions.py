@@ -10,17 +10,13 @@ from builtins import range
 from future.utils import iteritems
 
 # third-party package dependencies
-from configparser import RawConfigParser
 from sqlalchemy import create_engine, pool, sql, MetaData, Table
 
 # local modules
 from . import abstrackr_dataset
-from .sklearn_predictor import BaggedUSLearner
+from . import sklearn_predictor
 
 ################################################################################
-
-config = RawConfigParser()
-config.read(os.path.normpath(os.path.join(os.path.dirname(__file__), r'../config.txt')))
 
 def make_predictions(review_id, t_citations, t_labels, t_prediction_status, t_predictions):
     #predictions, train_size, num_pos = pred_results
@@ -38,7 +34,7 @@ def make_predictions(review_id, t_citations, t_labels, t_prediction_status, t_pr
 #    if review_dataset.is_everything_labeled():
 #        return False
 
-    learner = BaggedUSLearner(review_dataset)
+    learner = sklearn_predictor.BaggedUSLearner(review_dataset)
     print( "training..." )
     try:
         learner.train()
@@ -233,18 +229,18 @@ def _re_prioritize(review_id, sort_by_str, t_citations, t_priorities, t_predicti
 def _priority_q_is_empty(review_id, t_priorities):
     return len(sql.select([t_priorities.c.id], t_priorities.c.project_id == review_id).execute().fetchall()) == 0
 
-def main(conn_string, schema=None):
+def main(conn_string, library=None):
     # database connection setup with sqlalchemy
-    engine = create_engine(config.get('database', conn_string), poolclass=pool.NullPool)
-    metadata = MetaData(engine, schema=schema)
+    engine = create_engine(conn_string, poolclass=pool.NullPool)
+    metadata = MetaData(engine)
 
     # bind the tables
-    t_citations = Table("citations", metadata, autoload=True)
-    t_labels = Table("labels", metadata, autoload=True)
-    t_reviews = Table("projects", metadata, autoload=True)
-    t_prediction_status = Table("predictionstatuses", metadata, autoload=True)
-    t_predictions = Table("predictions", metadata, autoload=True)
-    t_priorities = Table("priorities", metadata, autoload=True)
+    t_citations = Table("items", metadata, schema=library, autoload=True)
+    t_labels = Table("abs_labels", metadata, schema=library, autoload=True)
+    #t_reviews = Table("projects", metadata, autoload=True)
+    t_prediction_status = Table("abs_predictions", metadata, schema="logs", autoload=True)
+    t_predictions = Table("abs_predictions", metadata, schema=library, autoload=True)
+    #t_priorities = Table("priorities", metadata, schema=library, autoload=True)
     #t_users = Table("user", metadata, autoload=True)
     #t_labeled_features = Table("labeledfeatures", metadata, autoload=True)
     #encoded_status = Table("encodedstatuses", metadata, autoload=True) # not used anymore
@@ -285,4 +281,4 @@ def main(conn_string, schema=None):
     print( "done." )
 
 if __name__ == "__main__":
-    main()
+    main(*sys.argv[1:])
