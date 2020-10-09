@@ -5,7 +5,7 @@ import os
 from configparser import RawConfigParser
 
 import abstrackr.generate_predictions
-from zotero_sync import fetch, schema, config
+from zotero_sync import fetch, schema
 
 def read():
     config = RawConfigParser()
