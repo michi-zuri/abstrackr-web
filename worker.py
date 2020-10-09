@@ -27,7 +27,7 @@ def read():
 
     return conn_string, api_key
 
-conn_string, api_key = config.read()
+conn_string, api_key = read()
 
 # Uncomment the following line to flush the schema cache :
 #schema.from_zotero(flush = True, verbose = True)
